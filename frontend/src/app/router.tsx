@@ -2,7 +2,20 @@ import React, { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { LoadingPulse } from '@/components/ui/LoadingPulse';
 
-const GpuPage       = lazy(() => import('@/features/gpu/GpuStatusPanel').then(m => ({ default: m.GpuStatusPanel })));
+const GpuPage              = lazy(() => import('@/features/gpu/GpuStatusPanel').then(m => ({ default: m.GpuStatusPanel })));
+const ChatPage             = lazy(() => import('@/features/chat/ChatPanel').then(m => ({ default: m.ChatPanel })));
+const ProvidersPage        = lazy(() => import('@/features/providers/ProvidersPage').then(m => ({ default: m.ProvidersPage })));
+const ModelsPage           = lazy(() => import('@/features/models/ModelsPage').then(m => ({ default: m.ModelsPage })));
+const VoicePage            = lazy(() => import('@/features/voice/VoicePanel').then(m => ({ default: m.VoicePanel })));
+const MemoryPage           = lazy(() => import('@/features/memory/MemoryPanel').then(m => ({ default: m.MemoryPanel })));
+const TerminalPage         = lazy(() => import('@/features/execution/TerminalPanel').then(m => ({ default: m.TerminalPanel })));
+const ToolsPage            = lazy(() => import('@/features/tools/ToolsPanel').then(m => ({ default: m.ToolsPanel })));
+const SettingsPage         = lazy(() => import('@/features/settings/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const SearchPage           = lazy(() => import('@/features/search/SearchPanel').then(m => ({ default: m.SearchPanel })));
+const VisionPage           = lazy(() => import('@/features/vision/VisionPanel').then(m => ({ default: m.VisionPanel })));
+const MonitoringPage       = lazy(() => import('@/features/monitoring/MonitoringPage').then(m => ({ default: m.MonitoringPage })));
+const SelfImprovementPage  = lazy(() => import('@/features/selfImprovement/SelfImprovementPage').then(m => ({ default: m.SelfImprovementPage })));
+const LocalActionsPage     = lazy(() => import('@/features/localActions/LocalActionsPage').then(m => ({ default: m.LocalActionsPage })));
 
 function Placeholder({ name }: { name: string }) {
   return (
@@ -42,21 +55,36 @@ export function AppRouter() {
         </SuspensePage>
       } />
 
-      {/* Placeholder routes — will be replaced as modules are implemented */}
-      <Route path="/chat"             element={<Placeholder name="Chat" />} />
-      <Route path="/voice"            element={<Placeholder name="Voice" />} />
-      <Route path="/vision"           element={<Placeholder name="Vision" />} />
-      <Route path="/memory"           element={<Placeholder name="Memory" />} />
-      <Route path="/tools"            element={<Placeholder name="Tools" />} />
-      <Route path="/execution"        element={<Placeholder name="Execution Sandbox" />} />
-      <Route path="/search"           element={<Placeholder name="Search" />} />
+      <Route path="/chat" element={
+        <SuspensePage>
+          <ChatPage />
+        </SuspensePage>
+      } />
+      <Route path="/voice" element={<SuspensePage><div className="h-full overflow-auto"><VoicePage /></div></SuspensePage>} />
+      <Route path="/vision" element={<SuspensePage><div className="h-full overflow-auto"><VisionPage /></div></SuspensePage>} />
+      <Route path="/memory" element={<SuspensePage><div className="h-full overflow-auto"><MemoryPage /></div></SuspensePage>} />
+      <Route path="/tools" element={<SuspensePage><div className="h-full overflow-auto"><ToolsPage /></div></SuspensePage>} />
+      <Route path="/execution" element={<SuspensePage><TerminalPage /></SuspensePage>} />
+      <Route path="/search" element={<SuspensePage><div className="h-full overflow-auto"><SearchPage /></div></SuspensePage>} />
       <Route path="/terminal"         element={<Placeholder name="Terminal" />} />
-      <Route path="/providers"        element={<Placeholder name="Providers" />} />
-      <Route path="/models"           element={<Placeholder name="Models" />} />
-      <Route path="/monitoring"       element={<Placeholder name="Monitoring" />} />
-      <Route path="/local-actions"    element={<Placeholder name="Local Actions" />} />
-      <Route path="/self-improvement" element={<Placeholder name="Self-Improvement" />} />
-      <Route path="/settings"         element={<Placeholder name="Settings" />} />
+      <Route path="/providers" element={
+        <SuspensePage>
+          <div className="h-full overflow-auto">
+            <ProvidersPage />
+          </div>
+        </SuspensePage>
+      } />
+      <Route path="/models" element={
+        <SuspensePage>
+          <div className="h-full overflow-auto">
+            <ModelsPage />
+          </div>
+        </SuspensePage>
+      } />
+      <Route path="/monitoring" element={<SuspensePage><div className="h-full overflow-auto"><MonitoringPage /></div></SuspensePage>} />
+      <Route path="/local-actions" element={<SuspensePage><div className="h-full overflow-auto"><LocalActionsPage /></div></SuspensePage>} />
+      <Route path="/self-improvement" element={<SuspensePage><div className="h-full overflow-auto"><SelfImprovementPage /></div></SuspensePage>} />
+      <Route path="/settings" element={<SuspensePage><div className="h-full overflow-auto"><SettingsPage /></div></SuspensePage>} />
 
       <Route path="*" element={<Placeholder name="404 — Page Not Found" />} />
     </Routes>
