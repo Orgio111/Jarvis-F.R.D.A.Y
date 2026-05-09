@@ -1,0 +1,162 @@
+version: "3.9"
+
+# ─── JARVIS — CPU Mode (default) ──────────────────────────────────────────────
+# All services run in CPU mode. GPU is optional via docker-compose.gpu.yml.
+# Start: docker compose -f deploy/docker-compose.yml up -d
+
+x-common-env: &common-env
+  APP_ENV: ${APP_ENV:-development}
+  REDIS_URL: redis://redis:6379/0
+  RUST_BROKER_URL: http://rust-broker:8200
+  JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+  PROMETHEUS_ENABLED: "true"
+  OTEL_ENABLED: "true"
+
+services:
+
+  # ─── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Python AI Service ──────────────────────────────────────────────────────
+  python-ai-service:
+    build:
+      context: ../backend/python-ai-service
+      dockerfile: Dockerfile
+      target: base
+    restart: unless-stopped
+    expose:
+      - "8100"
+    env_file:
+      - ../backend/.env
+    environment:
+      <<: *common-env
+      APP_HOST: 0.0.0.0
+      APP_PORT: "8100"
+      GPU_ENABLED: ${GPU_ENABLED:-true}
+      GPU_REQUIRED: ${GPU_REQUIRED:-false}
+      GPU_ALLOW_CPU_FALLBACK: ${GPU_ALLOW_CPU_FALLBACK:-true}
+    volumes:
+      - ai_data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ─── Rust Broker ────────────────────────────────────────────────────────────
+  rust-broker:
+    build:
+      context: ../backend/rust-broker
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "8200"
+    environment:
+      <<: *common-env
+      RUST_BROKER_HOST: 0.0.0.0
+      RUST_BROKER_PORT: "8200"
+      RUST_LOG: info
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8200/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+
+  # ─── Go Gateway (public) ────────────────────────────────────────────────────
+  go-gateway:
+    build:
+      context: ../backend/go-gateway
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    env_file:
+      - ../backend/.env
+    environment:
+      <<: *common-env
+      APP_HOST: 0.0.0.0
+      APP_PORT: "8000"
+      PYTHON_AI_SERVICE_URL: http://python-ai-service:8100
+      GPU_REQUIRED: ${GPU_REQUIRED:-false}
+      GPU_ALLOW_CPU_FALLBACK: "true"
+    depends_on:
+      python-ai-service:
+        condition: service_healthy
+      rust-broker:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8000/api/health"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ─── Prometheus ─────────────────────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    restart: unless-stopped
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+
+  # ─── Grafana ────────────────────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:10.4.2
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=jarvis
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - ./grafana/datasources:/etc/grafana/provisioning/datasources:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
+  # ─── Jaeger ─────────────────────────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    restart: unless-stopped
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+
+volumes:
+  redis_data:
+  ai_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  default:
+    name: jarvis-network

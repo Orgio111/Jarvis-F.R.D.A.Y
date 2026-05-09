@@ -1,0 +1,139 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── JARVIS Base Styles ──────────────────────────────────────────────────── */
+
+@layer base {
+  :root {
+    --jarvis-bg:            #080c14;
+    --jarvis-bg-2:          #0d1424;
+    --jarvis-bg-3:          #111d2e;
+    --jarvis-cyan:          #00d4ff;
+    --jarvis-blue:          #0066ff;
+    --jarvis-green:         #00ff88;
+    --jarvis-yellow:        #ffd700;
+    --jarvis-red:           #ff4466;
+    --jarvis-text:          #c8d8f0;
+    --jarvis-text-dim:      #6b8ab5;
+    --jarvis-text-bright:   #e8f4ff;
+    --jarvis-border:        rgba(0, 212, 255, 0.18);
+    --jarvis-border-strong: rgba(0, 212, 255, 0.45);
+    --scrollbar-width:      6px;
+    --scrollbar-color:      rgba(0, 212, 255, 0.2);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html, body, #root {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  body {
+    background-color: var(--jarvis-bg);
+    color: var(--jarvis-text);
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: var(--scrollbar-width);
+    height: var(--scrollbar-width);
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-color);
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 212, 255, 0.4);
+  }
+
+  /* Selection */
+  ::selection {
+    background: rgba(0, 212, 255, 0.25);
+    color: #e8f4ff;
+  }
+}
+
+@layer components {
+  /* Glass panel */
+  .jarvis-panel {
+    @apply rounded-lg border bg-jarvis-panel;
+    border-color: var(--jarvis-border);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(0, 212, 255, 0.08);
+  }
+
+  .jarvis-panel-hover {
+    @apply transition-all duration-200;
+  }
+
+  .jarvis-panel-hover:hover {
+    border-color: var(--jarvis-border-strong);
+    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(0, 212, 255, 0.2);
+  }
+
+  /* Neon text */
+  .neon-cyan {
+    color: var(--jarvis-cyan);
+    text-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
+  }
+
+  .neon-blue {
+    color: var(--jarvis-blue);
+    text-shadow: 0 0 8px rgba(0, 102, 255, 0.6);
+  }
+
+  .neon-green {
+    color: var(--jarvis-green);
+    text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
+  }
+
+  /* Status badge */
+  .status-badge {
+    @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+
+  /* Cockpit button */
+  .btn-cockpit {
+    @apply px-4 py-2 rounded border text-sm font-medium transition-all duration-150;
+    border-color: var(--jarvis-border);
+    color: var(--jarvis-text);
+    background: transparent;
+  }
+
+  .btn-cockpit:hover {
+    border-color: var(--jarvis-cyan);
+    color: var(--jarvis-cyan);
+    box-shadow: 0 0 12px rgba(0, 212, 255, 0.2);
+  }
+
+  .btn-cockpit-primary {
+    @apply px-4 py-2 rounded border text-sm font-medium transition-all duration-150;
+    border-color: var(--jarvis-cyan);
+    color: var(--jarvis-bg);
+    background: var(--jarvis-cyan);
+  }
+
+  .btn-cockpit-primary:hover {
+    box-shadow: 0 0 16px rgba(0, 212, 255, 0.5);
+  }
+
+  /* Horizontal rule */
+  .jarvis-hr {
+    border: none;
+    height: 1px;
+    background: var(--jarvis-border);
+  }
+}

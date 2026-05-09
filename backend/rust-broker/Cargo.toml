@@ -1,0 +1,33 @@
+[package]
+name = "jarvis-broker"
+version = "0.1.0"
+edition = "2021"
+description = "JARVIS Rust Tokio event broker — high-throughput async event bus"
+
+[[bin]]
+name = "jarvis-broker"
+path = "src/main.rs"
+
+[dependencies]
+tokio = { version = "1.38", features = ["full"] }
+axum = { version = "0.7", features = ["json", "ws"] }
+axum-extra = { version = "0.9", features = ["typed-header"] }
+tower = { version = "0.4", features = ["full"] }
+tower-http = { version = "0.5", features = ["cors", "trace", "compression-gzip"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+redis = { version = "0.25", features = ["tokio-comp", "aio", "streams"] }
+tokio-stream = "0.1"
+futures = "0.3"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+prometheus = { version = "0.13", features = ["process"] }
+dotenvy = "0.15"
+chrono = { version = "0.4", features = ["serde"] }
+bytes = "1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

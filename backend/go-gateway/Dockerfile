@@ -1,0 +1,26 @@
+FROM golang:1.22-alpine AS builder
+
+WORKDIR /build
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates
+
+# Cache dependencies
+COPY go.mod go.sum* ./
+RUN go mod download
+
+# Build
+COPY . .
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
+    go build -ldflags="-s -w -extldflags '-static'" \
+    -o /bin/gateway ./cmd/gateway
+
+# ─── Runtime ──────────────────────────────────────────────────────────────────
+FROM scratch
+
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=builder /bin/gateway /gateway
+
+EXPOSE 8000
+
+ENTRYPOINT ["/gateway"]
