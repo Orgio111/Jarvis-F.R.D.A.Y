@@ -13,7 +13,7 @@ from app.core.logging import get_logger, setup_logging
 from app.gpu.detector import GPUDetector
 from app.gpu.workload_router import WorkloadRouter
 from app.providers.router import ProviderRouter
-from app.routers import health, bootstrap, gpu, system, providers, models, chat
+from app.routers import health, bootstrap, gpu, system, providers, models, chat, voice, memory, execution, tools
 from app.routers.gpu import set_workload_router
 
 logger = get_logger(__name__)
@@ -109,3 +109,7 @@ app.include_router(system.router)
 app.include_router(providers.router)
 app.include_router(models.router)
 app.include_router(chat.router)
+app.include_router(voice.router)
+app.include_router(memory.router)
+app.include_router(execution.router)
+app.include_router(tools.router)

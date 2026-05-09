@@ -73,6 +73,29 @@ func Build(cfg *config.Config, aiProxy *proxy.AIProxy, redis *redisclient.Client
 		r.Post("/api/chat/completions", chatH.Completions)
 		r.Get("/api/chat/history", chatH.History)
 
+		// Voice
+		voiceH := handlers.NewVoiceHandler(cfg, aiProxy)
+		r.Get("/api/voice/status", voiceH.Status)
+		r.Post("/api/voice/stt", voiceH.STT)
+		r.Post("/api/voice/tts", voiceH.TTS)
+
+		// Memory
+		memoryH := handlers.NewMemoryHandler(cfg, aiProxy)
+		r.Get("/api/memory/status", memoryH.Status)
+		r.Post("/api/memory/search", memoryH.Search)
+		r.Post("/api/memory/store", memoryH.Store)
+		r.Delete("/api/memory/clear", memoryH.Clear)
+
+		// Execution
+		executionH := handlers.NewExecutionHandler(cfg, aiProxy)
+		r.Get("/api/execution/status", executionH.Status)
+		r.Post("/api/execution/run", executionH.Run)
+
+		// Tools
+		toolsH := handlers.NewToolsHandler(cfg, aiProxy)
+		r.Get("/api/tools", toolsH.List)
+		r.Post("/api/tools/{toolId}/execute", toolsH.Execute)
+
 		// 404 with canonical envelope
 		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			contracts.WriteNotFound(w, mw.GetCorrelationID(r))
