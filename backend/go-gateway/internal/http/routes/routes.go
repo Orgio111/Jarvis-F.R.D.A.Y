@@ -59,6 +59,20 @@ func Build(cfg *config.Config, aiProxy *proxy.AIProxy, redis *redisclient.Client
 		r.Post("/api/gpu/workloads/reload", gpuH.ReloadWorkloads)
 		r.Patch("/api/gpu/settings", gpuH.PatchSettings)
 
+		// Providers
+		providersH := handlers.NewProvidersHandler(cfg, aiProxy)
+		r.Get("/api/providers", providersH.List)
+		r.Get("/api/providers/{providerId}", providersH.Get)
+
+		// Models
+		modelsH := handlers.NewModelsHandler(cfg, aiProxy)
+		r.Get("/api/models", modelsH.List)
+
+		// Chat
+		chatH := handlers.NewChatHandler(cfg, aiProxy)
+		r.Post("/api/chat/completions", chatH.Completions)
+		r.Get("/api/chat/history", chatH.History)
+
 		// 404 with canonical envelope
 		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			contracts.WriteNotFound(w, mw.GetCorrelationID(r))

@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     ai_provider_routing_mode: Literal["auto", "primary", "fallback"] = "auto"
     ai_provider_timeout_seconds: int = 45
     ai_provider_max_retries: int = 2
+    ai_max_tokens: int = 4096
+    default_chat_model: str = ""
 
     # ─── Model discovery ──────────────────────────────────────────────────────
     model_discovery_enabled: bool = True

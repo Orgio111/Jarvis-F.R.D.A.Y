@@ -3,6 +3,9 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { LoadingPulse } from '@/components/ui/LoadingPulse';
 
 const GpuPage       = lazy(() => import('@/features/gpu/GpuStatusPanel').then(m => ({ default: m.GpuStatusPanel })));
+const ChatPage      = lazy(() => import('@/features/chat/ChatPanel').then(m => ({ default: m.ChatPanel })));
+const ProvidersPage = lazy(() => import('@/features/providers/ProvidersPage').then(m => ({ default: m.ProvidersPage })));
+const ModelsPage    = lazy(() => import('@/features/models/ModelsPage').then(m => ({ default: m.ModelsPage })));
 
 function Placeholder({ name }: { name: string }) {
   return (
@@ -42,8 +45,11 @@ export function AppRouter() {
         </SuspensePage>
       } />
 
-      {/* Placeholder routes — will be replaced as modules are implemented */}
-      <Route path="/chat"             element={<Placeholder name="Chat" />} />
+      <Route path="/chat" element={
+        <SuspensePage>
+          <ChatPage />
+        </SuspensePage>
+      } />
       <Route path="/voice"            element={<Placeholder name="Voice" />} />
       <Route path="/vision"           element={<Placeholder name="Vision" />} />
       <Route path="/memory"           element={<Placeholder name="Memory" />} />
@@ -51,8 +57,20 @@ export function AppRouter() {
       <Route path="/execution"        element={<Placeholder name="Execution Sandbox" />} />
       <Route path="/search"           element={<Placeholder name="Search" />} />
       <Route path="/terminal"         element={<Placeholder name="Terminal" />} />
-      <Route path="/providers"        element={<Placeholder name="Providers" />} />
-      <Route path="/models"           element={<Placeholder name="Models" />} />
+      <Route path="/providers" element={
+        <SuspensePage>
+          <div className="h-full overflow-auto">
+            <ProvidersPage />
+          </div>
+        </SuspensePage>
+      } />
+      <Route path="/models" element={
+        <SuspensePage>
+          <div className="h-full overflow-auto">
+            <ModelsPage />
+          </div>
+        </SuspensePage>
+      } />
       <Route path="/monitoring"       element={<Placeholder name="Monitoring" />} />
       <Route path="/local-actions"    element={<Placeholder name="Local Actions" />} />
       <Route path="/self-improvement" element={<Placeholder name="Self-Improvement" />} />

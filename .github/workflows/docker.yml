@@ -1,0 +1,44 @@
+name: Docker Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    paths:
+      - "backend/*/Dockerfile"
+      - "deploy/docker-compose.yml"
+      - ".github/workflows/docker.yml"
+
+jobs:
+  build-images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build go-gateway image
+        uses: docker/build-push-action@v5
+        with:
+          context: backend/go-gateway
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build python-ai-service image (CPU)
+        uses: docker/build-push-action@v5
+        with:
+          context: backend/python-ai-service
+          target: base
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build rust-broker image
+        uses: docker/build-push-action@v5
+        with:
+          context: backend/rust-broker
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
