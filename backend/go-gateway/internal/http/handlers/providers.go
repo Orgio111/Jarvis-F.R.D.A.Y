@@ -63,7 +63,7 @@ func (h *ProvidersHandler) Get(w http.ResponseWriter, r *http.Request) {
 		Data interface{} `json:"data"`
 	}
 	if err := result.DecodeInto(&envelope); err != nil {
-		contracts.WriteInternalError(w, correlationID, "failed to decode provider response")
+		contracts.WriteInternalError(w, correlationID)
 		return
 	}
 	contracts.WriteSuccess(w, correlationID, envelope.Data)

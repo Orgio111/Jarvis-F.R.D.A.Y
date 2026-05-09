@@ -40,7 +40,7 @@ func (h *ModelsHandler) List(w http.ResponseWriter, r *http.Request) {
 		Data interface{} `json:"data"`
 	}
 	if err := result.DecodeInto(&envelope); err != nil {
-		contracts.WriteInternalError(w, correlationID, "failed to decode models response")
+		contracts.WriteInternalError(w, correlationID)
 		return
 	}
 	contracts.WriteSuccess(w, correlationID, envelope.Data)
