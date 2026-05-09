@@ -96,6 +96,32 @@ func Build(cfg *config.Config, aiProxy *proxy.AIProxy, redis *redisclient.Client
 		r.Get("/api/tools", toolsH.List)
 		r.Post("/api/tools/{toolId}/execute", toolsH.Execute)
 
+		// Search
+		searchH := handlers.NewSearchHandler(cfg, aiProxy)
+		r.Get("/api/search/status", searchH.Status)
+		r.Post("/api/search", searchH.Search)
+
+		// Vision
+		visionH := handlers.NewVisionHandler(cfg, aiProxy)
+		r.Get("/api/vision/status", visionH.Status)
+		r.Post("/api/vision/analyze", visionH.Analyze)
+
+		// Self-improvement
+		selfImpH := handlers.NewSelfImprovementHandler(cfg, aiProxy)
+		r.Get("/api/self-improvement/status", selfImpH.Status)
+		r.Get("/api/self-improvement/suggestions", selfImpH.ListSuggestions)
+		r.Post("/api/self-improvement/suggest", selfImpH.Suggest)
+		r.Post("/api/self-improvement/suggestions/{suggestionId}/approve", selfImpH.Approve)
+		r.Post("/api/self-improvement/suggestions/{suggestionId}/reject", selfImpH.Reject)
+
+		// Local actions
+		localActH := handlers.NewLocalActionsHandler(cfg, aiProxy)
+		r.Get("/api/local-actions", localActH.List)
+		r.Get("/api/local-actions/pending", localActH.ListPending)
+		r.Post("/api/local-actions/{actionId}/execute", localActH.Execute)
+		r.Post("/api/local-actions/approvals/{approvalId}/approve", localActH.Approve)
+		r.Post("/api/local-actions/approvals/{approvalId}/deny", localActH.Deny)
+
 		// 404 with canonical envelope
 		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 			contracts.WriteNotFound(w, mw.GetCorrelationID(r))
