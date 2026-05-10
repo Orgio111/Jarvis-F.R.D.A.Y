@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -68,14 +69,19 @@ func (h *EventsHandler) Stream(w http.ResponseWriter, r *http.Request) {
 		)
 		return
 	}
-	defer resp.Body.Close()
 
-	// Drain client pings / detect disconnect so we can cancel the SSE read.
+	// closeBody ensures resp.Body.Close is called exactly once regardless of
+	// which goroutine (disconnect reader vs. SSE scanner) triggers the shutdown.
+	var closeOnce sync.Once
+	closeBody := func() { closeOnce.Do(func() { resp.Body.Close() }) }
+	defer closeBody()
+
+	// Drain client pings / detect disconnect so we can interrupt the SSE read.
 	go func() {
 		conn.SetReadDeadline(time.Time{})
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
-				resp.Body.Close()
+				closeBody()
 				return
 			}
 		}
