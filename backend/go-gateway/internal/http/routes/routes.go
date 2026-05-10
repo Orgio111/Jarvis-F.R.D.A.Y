@@ -128,5 +128,9 @@ func Build(cfg *config.Config, aiProxy *proxy.AIProxy, redis *redisclient.Client
 		})
 	})
 
+	// ─── WebSocket events (no session headers required — protocol upgrade) ────
+	eventsH := handlers.NewEventsHandler(cfg)
+	r.Get("/ws/events/{topic}", eventsH.Stream)
+
 	return r
 }

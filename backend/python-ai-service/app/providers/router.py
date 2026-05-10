@@ -4,7 +4,9 @@ from typing import TYPE_CHECKING
 
 from app.core.config import Settings
 from app.core.logging import get_logger
+from app.providers.anthropic_provider import AnthropicProvider
 from app.providers.nvidia_nim import NvidiaNIMProvider
+from app.providers.openai_provider import OpenAIProvider
 from app.providers.openrouter import OpenRouterProvider
 
 if TYPE_CHECKING:
@@ -27,10 +29,14 @@ class ProviderRouter:
         self._build_providers()
 
     def _build_providers(self) -> None:
+        anthropic = AnthropicProvider(self._settings)
         nim = NvidiaNIMProvider(self._settings)
+        openai = OpenAIProvider(self._settings)
         openrouter = OpenRouterProvider(self._settings)
         self._providers = {
+            anthropic.provider_id: anthropic,
             nim.provider_id: nim,
+            openai.provider_id: openai,
             openrouter.provider_id: openrouter,
         }
 
