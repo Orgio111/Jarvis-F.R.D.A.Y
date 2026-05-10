@@ -25,8 +25,11 @@ class Settings(BaseSettings):
     rust_broker_url: str = "http://localhost:8200"
 
     # ─── Provider keys (empty = provider_unavailable, not a startup failure) ──
+    anthropic_api_key: str = ""
     nvidia_nim_api_key: str = ""
     nvidia_nim_base_url: str = "https://integrate.api.nvidia.com/v1"
+    openai_api_key: str = ""
+    openai_base_url: str = "https://api.openai.com/v1"
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
 

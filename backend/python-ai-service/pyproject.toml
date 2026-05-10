@@ -25,6 +25,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+providers = [
+    "anthropic>=0.40.0",
+    "openai>=1.40.0",
+]
 gpu = [
     "torch>=2.3.0",
     "sentence-transformers>=3.0.0",

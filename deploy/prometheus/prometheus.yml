@@ -3,22 +3,16 @@ global:
   evaluation_interval: 15s
 
 scrape_configs:
-  - job_name: "go-gateway"
+  - job_name: jarvis-gateway
     static_configs:
       - targets: ["go-gateway:8000"]
     metrics_path: /metrics
 
-  - job_name: "python-ai-service"
+  - job_name: jarvis-python-ai-service
     static_configs:
       - targets: ["python-ai-service:8100"]
     metrics_path: /metrics
 
-  - job_name: "rust-broker"
+  - job_name: prometheus
     static_configs:
-      - targets: ["rust-broker:8200"]
-    metrics_path: /metrics
-
-  - job_name: "redis"
-    static_configs:
-      - targets: ["redis:6379"]
-    metrics_path: /metrics
+      - targets: ["localhost:9090"]
