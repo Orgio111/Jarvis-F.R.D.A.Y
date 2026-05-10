@@ -4,6 +4,7 @@ import { LoadingPulse } from '@/components/ui/LoadingPulse';
 
 const GpuPage              = lazy(() => import('@/features/gpu/GpuStatusPanel').then(m => ({ default: m.GpuStatusPanel })));
 const ChatPage             = lazy(() => import('@/features/chat/ChatPanel').then(m => ({ default: m.ChatPanel })));
+const DashboardPage        = lazy(() => import('@/features/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
 const ProvidersPage        = lazy(() => import('@/features/providers/ProvidersPage').then(m => ({ default: m.ProvidersPage })));
 const ModelsPage           = lazy(() => import('@/features/models/ModelsPage').then(m => ({ default: m.ModelsPage })));
 const VoicePage            = lazy(() => import('@/features/voice/VoicePanel').then(m => ({ default: m.VoicePanel })));
@@ -45,7 +46,8 @@ function SuspensePage({ children }: { children: React.ReactNode }) {
 export function AppRouter() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/chat" replace />} />
+      <Route path="/" element={<SuspensePage><div className="h-full overflow-auto"><DashboardPage /></div></SuspensePage>} />
+      <Route path="/dashboard" element={<Navigate to="/" replace />} />
 
       <Route path="/gpu" element={
         <SuspensePage>
@@ -66,7 +68,7 @@ export function AppRouter() {
       <Route path="/tools" element={<SuspensePage><div className="h-full overflow-auto"><ToolsPage /></div></SuspensePage>} />
       <Route path="/execution" element={<SuspensePage><TerminalPage /></SuspensePage>} />
       <Route path="/search" element={<SuspensePage><div className="h-full overflow-auto"><SearchPage /></div></SuspensePage>} />
-      <Route path="/terminal"         element={<Placeholder name="Terminal" />} />
+      <Route path="/terminal" element={<SuspensePage><TerminalPage /></SuspensePage>} />
       <Route path="/providers" element={
         <SuspensePage>
           <div className="h-full overflow-auto">
