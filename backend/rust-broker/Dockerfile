@@ -1,4 +1,4 @@
-FROM rust:1.78-slim AS builder
+FROM rust:1.90-slim AS builder
 
 WORKDIR /build
 
@@ -20,7 +20,7 @@ RUN touch src/main.rs && cargo build --release
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
+    ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /build/target/release/jarvis-broker /jarvis-broker

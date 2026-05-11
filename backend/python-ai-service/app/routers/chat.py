@@ -9,7 +9,6 @@ from fastapi.responses import StreamingResponse
 
 from app.core.config import get_settings
 from app.core.envelopes import error, new_event, success
-from app.core.errors import ProviderUnavailableError
 from app.core.logging import get_logger
 from app.providers.router import ProviderRouter
 

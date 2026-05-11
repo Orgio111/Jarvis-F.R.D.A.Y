@@ -8,7 +8,6 @@ from app.core.config import get_settings
 from app.core.envelopes import success
 from app.core.logging import get_logger
 from app.gpu.detector import GPUDetector
-from app.gpu.workload_router import WorkloadRouter
 from app.providers.router import ProviderRouter
 
 logger = get_logger(__name__)

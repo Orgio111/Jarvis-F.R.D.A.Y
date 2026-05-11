@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker compose *)",
+      "Bash(npm install *)",
+      "Bash(timeout 15 npx vite --port 5173)"
+    ]
+  }
+}

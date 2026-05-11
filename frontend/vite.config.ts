@@ -1,13 +1,13 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
-import path from 'path';
+import { resolve } from 'path';
 
 export default defineConfig(({ command }) => ({
   plugins: [react()],
 
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': resolve(process.cwd(), './src'),
     },
   },
 
@@ -27,12 +27,25 @@ export default defineConfig(({ command }) => ({
     sourcemap: command === 'serve',
     rollupOptions: {
       output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
-          'query-vendor': ['@tanstack/react-query'],
-          'motion-vendor': ['framer-motion'],
-          'editor-vendor': ['@monaco-editor/react'],
-          'zustand-vendor': ['zustand'],
+        manualChunks: (id) => {
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) {
+              return 'react-vendor';
+            }
+            if (id.includes('@tanstack')) {
+              return 'query-vendor';
+            }
+            if (id.includes('framer-motion')) {
+              return 'motion-vendor';
+            }
+            if (id.includes('monaco-editor')) {
+              return 'editor-vendor';
+            }
+            if (id.includes('zustand')) {
+              return 'zustand-vendor';
+            }
+            return 'vendor';
+          }
         },
       },
     },

@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from 'react';
+import { useRef, useEffect } from 'react';
 import { useGpuStore } from './gpuStore';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 

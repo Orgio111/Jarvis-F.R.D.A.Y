@@ -1,4 +1,3 @@
-import React from 'react';
 import type { GPUWorkloads, WorkloadDevice } from '@/lib/api/types';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 

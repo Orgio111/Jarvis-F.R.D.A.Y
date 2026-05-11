@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
+import { freshness } from '@/lib/query/freshness';
 
 interface ActionParam {
   name: string;
@@ -59,14 +60,14 @@ export function LocalActionsPage() {
     queryKey: ['local-actions'],
     queryFn: () => apiClient.get<ActionsResponse>('/local-actions'),
     enabled: bootstrapReady,
-    staleTime: 30_000,
+    ...freshness.resourceState,
   });
 
   const { data: pendingData } = useQuery<PendingResponse>({
     queryKey: ['local-actions-pending'],
     queryFn: () => apiClient.get<PendingResponse>('/local-actions/pending'),
     enabled: bootstrapReady,
-    refetchInterval: 5000,
+    ...freshness.realtime,
   });
 
   const executeMut = useMutation({

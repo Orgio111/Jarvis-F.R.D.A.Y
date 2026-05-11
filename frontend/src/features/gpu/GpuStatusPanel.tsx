@@ -1,12 +1,10 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useGpuStore } from './gpuStore';
 import { useGpuStatus } from './useGpuStatus';
 import { GpuWorkloadsPanel } from './GpuWorkloadsPanel';
 import { GpuMetricsChart } from './GpuMetricsChart';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { NeonBadge } from '@/components/ui/NeonBadge';
-import { StatusDot } from '@/components/ui/StatusDot';
 
 export function GpuStatusPanel() {
   const { isLoading } = useGpuStatus();
@@ -114,7 +112,7 @@ function VRAMBar({ used, total }: { used: number; total: number }) {
         <span>{used} / {total} MB ({Math.round(pct)}%)</span>
       </div>
       <div className="h-1.5 bg-jarvis-bg-3 rounded-full overflow-hidden">
-        <motion.div
+        <m.div
           className={`h-full rounded-full ${color}`}
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
@@ -134,7 +132,7 @@ function UtilBar({ label, pct }: { label: string; pct: number }) {
         <span>{Math.round(pct)}%</span>
       </div>
       <div className="h-1.5 bg-jarvis-bg-3 rounded-full overflow-hidden">
-        <motion.div
+        <m.div
           className={`h-full rounded-full ${color}`}
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}

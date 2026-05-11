@@ -39,16 +39,29 @@ async fn main() {
     );
 
     // Event broker (in-memory broadcast bus + optional Redis pub/sub)
-    let broker = Arc::new(EventBroker::new(cfg.redis_url.clone(), cfg.channel_capacity));
+    let broker = Arc::new(EventBroker::new(
+        cfg.redis_url.clone(),
+        cfg.channel_capacity,
+        cfg.channel_idle_ttl,
+        cfg.channel_max_count,
+        cfg.sweep_interval,
+    ));
 
-    // Start Redis subscriber if configured
-    if let Some(ref redis_url) = cfg.redis_url {
+    // Start Redis subscriber if configured (the broker reads its own redis_url)
+    if cfg.redis_url.is_some() {
         let broker_clone = broker.clone();
-        let redis_url = redis_url.clone();
         tokio::spawn(async move {
-            if let Err(e) = broker_clone.start_redis_subscriber(&redis_url).await {
+            if let Err(e) = broker_clone.start_redis_subscriber().await {
                 tracing::warn!("redis subscriber stopped: {}", e);
             }
+        });
+    }
+
+    // Idle channel sweeper — bounds memory growth from one-shot topics.
+    {
+        let broker_clone = broker.clone();
+        tokio::spawn(async move {
+            broker_clone.run_idle_sweeper().await;
         });
     }
 

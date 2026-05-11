@@ -7,6 +7,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // AIProxy is the HTTP client used to communicate with the Python AI service.
@@ -17,15 +19,19 @@ type AIProxy struct {
 
 // New creates a new AIProxy pointing at the given base URL.
 func New(baseURL string, timeout time.Duration) *AIProxy {
+	// Wrap the pooled transport with otelhttp so outbound calls become child
+	// spans of the inbound request and propagate the traceparent header
+	// downstream to the Python AI service.
+	base := &http.Transport{
+		MaxIdleConns:        100,
+		MaxIdleConnsPerHost: 20,
+		IdleConnTimeout:     90 * time.Second,
+	}
 	return &AIProxy{
 		baseURL: baseURL,
 		httpClient: &http.Client{
-			Timeout: timeout,
-			Transport: &http.Transport{
-				MaxIdleConns:        100,
-				MaxIdleConnsPerHost: 20,
-				IdleConnTimeout:     90 * time.Second,
-			},
+			Timeout:   timeout,
+			Transport: otelhttp.NewTransport(base),
 		},
 	}
 }

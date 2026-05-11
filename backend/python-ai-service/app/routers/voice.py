@@ -4,7 +4,7 @@ import io
 import uuid
 from typing import Any
 
-from fastapi import APIRouter, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import Response
 
 from app.core.config import get_settings
@@ -102,7 +102,8 @@ async def text_to_speech(request: Request) -> Any:
         engine.runAndWait()
         with open(tmp_path, "rb") as f:
             audio_bytes = f.read()
-        import os; os.unlink(tmp_path)
+        import os
+        os.unlink(tmp_path)
         return Response(content=audio_bytes, media_type="audio/wav")
     except ImportError:
         pass

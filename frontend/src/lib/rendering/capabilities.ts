@@ -54,8 +54,9 @@ export async function detectCapabilities(): Promise<RenderingCapabilities> {
   // WebGPU probe
   let webgpu = false;
   try {
-    if ('gpu' in navigator && navigator.gpu) {
-      const adapter = await (navigator as Navigator & { gpu: GPU }).gpu.requestAdapter();
+    if ('gpu' in navigator && (navigator as Navigator & { gpu?: { requestAdapter: () => Promise<unknown> } }).gpu) {
+      const gpu = (navigator as Navigator & { gpu: { requestAdapter: () => Promise<unknown> } }).gpu;
+      const adapter = await gpu.requestAdapter();
       webgpu = adapter !== null;
     }
   } catch {

@@ -8,7 +8,7 @@ x-common-env: &common-env
   APP_ENV: ${APP_ENV:-development}
   REDIS_URL: redis://redis:6379/0
   RUST_BROKER_URL: http://rust-broker:8200
-  JAEGER_ENDPOINT: http://jaeger:14268/api/traces
+  JAEGER_ENDPOINT: http://jaeger:4318
   PROMETHEUS_ENABLED: "true"
   OTEL_ENABLED: "true"
 
@@ -44,6 +44,7 @@ services:
       <<: *common-env
       APP_HOST: 0.0.0.0
       APP_PORT: "8100"
+      OTEL_SERVICE_NAME: jarvis-python-ai-service
       GPU_ENABLED: ${GPU_ENABLED:-true}
       GPU_REQUIRED: ${GPU_REQUIRED:-false}
       GPU_ALLOW_CPU_FALLBACK: ${GPU_ALLOW_CPU_FALLBACK:-true}
@@ -96,6 +97,7 @@ services:
       <<: *common-env
       APP_HOST: 0.0.0.0
       APP_PORT: "8000"
+      OTEL_SERVICE_NAME: jarvis-gateway
       PYTHON_AI_SERVICE_URL: http://python-ai-service:8100
       GPU_REQUIRED: ${GPU_REQUIRED:-false}
       GPU_ALLOW_CPU_FALLBACK: "true"

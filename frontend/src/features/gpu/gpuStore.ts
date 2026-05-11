@@ -8,9 +8,9 @@ interface GPUStore {
   renderingCapabilities: RenderingCapabilities | null;
   lastUpdatedAt: string | null;
 
-  setStatus: (status: GPUStatus) => void;
-  appendMetrics: (metric: GPUMetrics) => void;
-  setRenderingCapabilities: (caps: RenderingCapabilities) => void;
+  setStatus: (_status: GPUStatus) => void;
+  appendMetrics: (_metric: GPUMetrics) => void;
+  setRenderingCapabilities: (_caps: RenderingCapabilities) => void;
   clear: () => void;
 }
 

@@ -1,4 +1,3 @@
-import React from 'react';
 import { useProviders } from './useProviders';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';

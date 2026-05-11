@@ -21,7 +21,7 @@ interface RequestOptions {
   signal?: AbortSignal;
 }
 
-async function request<T>(path: string, options: RequestOptions = {}): Promise<ApiSuccess<T>> {
+async function requestEnvelope<T>(path: string, options: RequestOptions = {}): Promise<ApiSuccess<T>> {
   const url = path.startsWith('http') ? path : apiUrl(path);
   const requestId = options.requestId ?? generateRequestId();
   const sessionId = getSessionId();
@@ -67,9 +67,17 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<A
   return json;
 }
 
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const envelope = await requestEnvelope<T>(path, options);
+  return envelope.data;
+}
+
 // ─── Convenience methods ───────────────────────────────────────────────────────
 
 export const apiClient = {
+  /** Access the full envelope (with correlationId/timestamp). */
+  envelope: requestEnvelope,
+
   get: <T>(path: string, opts?: Omit<RequestOptions, 'method' | 'body'>) =>
     request<T>(path, { ...opts, method: 'GET' }),
 

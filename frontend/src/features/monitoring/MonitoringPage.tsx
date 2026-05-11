@@ -1,10 +1,10 @@
-import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
+import { freshness } from '@/lib/query/freshness';
 
 interface SystemMetric {
   cpu_percent: number;
@@ -64,8 +64,7 @@ export function MonitoringPage() {
     queryKey: ['monitoring-metrics'],
     queryFn: () => apiClient.get<MonitoringData>('/monitoring/metrics'),
     enabled: bootstrapReady,
-    refetchInterval: 5000,
-    staleTime: 4000,
+    ...freshness.realtime,
   });
 
   const sys = data?.system;

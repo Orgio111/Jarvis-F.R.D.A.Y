@@ -59,13 +59,13 @@ cp frontend/.env.example frontend/.env
 ### 2 — Start with Docker Compose (recommended)
 
 ```bash
-make dev
+mingw32-make dev
 ```
 
 This starts all backend services. Then in a separate terminal:
 
 ```bash
-make frontend-dev
+mingw32-make frontend-dev
 ```
 
 Open http://localhost:5173
@@ -75,13 +75,13 @@ Open http://localhost:5173
 Check if GPU is available:
 
 ```bash
-make gpu-check
+mingw32-make gpu-check
 ```
 
 Start with GPU acceleration:
 
 ```bash
-make dev-gpu
+mingw32-make dev-gpu
 ```
 
 ## Services
@@ -156,5 +156,6 @@ GPU-accelerated workloads (when available):
 - Vision model inference
 
 ## License
+
 
 MIT

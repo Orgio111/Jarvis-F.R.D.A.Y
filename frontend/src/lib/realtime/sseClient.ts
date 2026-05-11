@@ -10,8 +10,8 @@ import { getSessionId, generateRequestId } from '@/lib/session/session';
 import { normalizeEvent } from './eventNormalizer';
 import type { BackendEvent } from '@/lib/api/types';
 
-export type SSEEventHandler<T = unknown> = (event: BackendEvent<T>) => void;
-export type SSEErrorHandler = (err: Event | Error) => void;
+export type SSEEventHandler<T = unknown> = (_event: BackendEvent<T>) => void;
+export type SSEErrorHandler = (_err: Event | Error) => void;
 
 interface SSEClientOptions {
   url: string;

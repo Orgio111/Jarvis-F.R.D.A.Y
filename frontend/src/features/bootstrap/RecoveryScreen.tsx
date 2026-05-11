@@ -1,5 +1,4 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useBootstrapStore } from './bootstrapStore';
 
 interface Props {
@@ -12,7 +11,7 @@ export function RecoveryScreen({ error, retryCount }: Props) {
 
   return (
     <div className="w-full h-full flex items-center justify-center bg-jarvis-bg">
-      <motion.div
+      <m.div
         className="jarvis-panel max-w-lg w-full mx-6 p-8 text-center"
         initial={{ opacity: 0, y: 24 }}
         animate={{ opacity: 1, y: 0 }}
@@ -61,7 +60,7 @@ export function RecoveryScreen({ error, retryCount }: Props) {
             Reload
           </button>
         </div>
-      </motion.div>
+      </m.div>
     </div>
   );
 }

@@ -1,9 +1,6 @@
 from __future__ import annotations
 
 import base64
-import io
-import uuid
-from typing import Any
 
 from fastapi import APIRouter, File, Request, UploadFile
 from fastapi.responses import JSONResponse

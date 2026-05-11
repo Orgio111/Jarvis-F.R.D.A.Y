@@ -5,7 +5,6 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
 from app.core.errors import JarvisError, jarvis_error_handler, generic_error_handler
@@ -100,6 +99,20 @@ if settings.prometheus_enabled:
         Instrumentator().instrument(app).expose(app, endpoint="/metrics")
     except ImportError:
         pass
+
+# ─── OpenTelemetry tracing (optional, non-fatal if Jaeger is down) ───────────
+if settings.otel_enabled:
+    try:
+        from app.core.tracing import init_tracing
+        init_tracing(
+            app,
+            service_name=settings.otel_service_name,
+            environment=settings.app_env,
+            jaeger_endpoint=settings.jaeger_endpoint,
+            sample_rate=getattr(settings, "otel_sample_rate", 1.0),
+        )
+    except Exception as exc:
+        logger.warning("otel_init_warning", error=str(exc))
 
 # ─── Routers ──────────────────────────────────────────────────────────────────
 app.include_router(health.router)

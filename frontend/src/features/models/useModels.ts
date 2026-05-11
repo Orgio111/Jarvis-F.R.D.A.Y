@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import type { Model } from '@/lib/api/types';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
+import { freshness } from '@/lib/query/freshness';
 
 interface ModelsResponse {
   models: Model[];
@@ -20,6 +21,6 @@ export function useModels(providerId?: string) {
       return res ?? { models: [], total: 0 };
     },
     enabled: bootstrapReady,
-    staleTime: 60_000,
+    ...freshness.slowlyChanging,
   });
 }

@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { apiClient } from '@/lib/api/client';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
+import { freshness } from '@/lib/query/freshness';
 
 type RecordState = 'idle' | 'recording' | 'processing' | 'done' | 'error';
 
@@ -20,7 +21,7 @@ export function VoicePanel() {
     queryKey: ['voice-status'],
     queryFn: () => apiClient.get<VoiceStatus>('/voice/status'),
     enabled: bootstrapReady,
-    staleTime: 30_000,
+    ...freshness.resourceState,
   });
 
   const [recordState, setRecordState] = useState<RecordState>('idle');
@@ -131,13 +132,13 @@ export function VoicePanel() {
 
               <AnimatePresence>
                 {recordState === 'recording' && (
-                  <motion.div
+                  <m.div
                     className="flex items-center gap-2 text-jarvis-red text-xs font-mono"
                     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                   >
                     <span className="w-2 h-2 rounded-full bg-jarvis-red animate-pulse" />
                     Recording…
-                  </motion.div>
+                  </m.div>
                 )}
               </AnimatePresence>
 

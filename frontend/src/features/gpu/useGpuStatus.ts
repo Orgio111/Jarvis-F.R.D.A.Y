@@ -8,6 +8,7 @@ import { EventTypes } from '@/lib/realtime/eventTypes';
 import type { BackendEvent } from '@/lib/api/types';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
 import { detectCapabilities } from '@/lib/rendering/capabilities';
+import { freshness } from '@/lib/query/freshness';
 
 /** Polls /api/gpu/status and subscribes to GPU SSE stream. */
 export function useGpuStatus() {
@@ -24,12 +25,11 @@ export function useGpuStatus() {
     queryKey: ['gpu', 'status'],
     queryFn: async () => {
       const res = await apiClient.get<GPUStatus>('/gpu/status');
-      setStatus(res.data);
-      return res.data;
+      setStatus(res);
+      return res;
     },
     enabled: isReady,
-    refetchInterval: 10_000,
-    staleTime: 8_000,
+    ...freshness.live,
   });
 
   // Subscribe to GPU SSE events for live metrics
