@@ -135,6 +135,25 @@ class Settings(BaseSettings):
     self_improvement_require_approval: bool = True
     self_versioning_enabled: bool = True
 
+    # ─── Persistent data directory ────────────────────────────────────────────
+    data_dir: str = "./data"
+
+    # ─── Agent orchestrator ───────────────────────────────────────────────────
+    agent_enabled: bool = True
+    agent_max_iterations: int = 5
+    agent_auto_skill_creation: bool = True
+
+    # ─── Skill system ─────────────────────────────────────────────────────────
+    skills_enabled: bool = True
+    skill_execution_timeout: int = 30
+
+    # ─── User profile ─────────────────────────────────────────────────────────
+    profile_enabled: bool = True
+    profile_llm_update_cooldown: int = 30
+
+    # ─── Scheduler ────────────────────────────────────────────────────────────
+    scheduler_enabled: bool = True
+
     # ─── Observability ────────────────────────────────────────────────────────
     prometheus_enabled: bool = True
     otel_enabled: bool = True
