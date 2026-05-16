@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import shlex
 from uuid import uuid4
 
 from fastapi import APIRouter, Request

@@ -38,8 +38,8 @@ export function useBootstrap() {
         });
 
         // Hydrate all feature stores from bootstrap data
-        hydrateStores(result.data);
-        setReady(result.data);
+        hydrateStores(result);
+        setReady(result);
       } catch (err) {
         if ((err as Error).name === 'AbortError') return;
         setError(getErrorMessage(err));

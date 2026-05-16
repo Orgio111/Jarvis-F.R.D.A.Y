@@ -1,6 +1,7 @@
 import React from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
+import { LazyMotion, domAnimation } from 'framer-motion';
 import { queryClient } from './queryClient';
 
 interface ProvidersProps {
@@ -11,7 +12,9 @@ export function Providers({ children }: ProvidersProps) {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        {children}
+        <LazyMotion features={domAnimation} strict>
+          {children}
+        </LazyMotion>
       </BrowserRouter>
     </QueryClientProvider>
   );

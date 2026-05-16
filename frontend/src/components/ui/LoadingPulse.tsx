@@ -1,5 +1,4 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 
 interface LoadingPulseProps {
   size?: 'sm' | 'md' | 'lg';
@@ -12,12 +11,12 @@ export function LoadingPulse({ size = 'md', label }: LoadingPulseProps) {
   return (
     <div className="flex flex-col items-center gap-3">
       <div className={`relative ${SIZES[size]}`}>
-        <motion.div
+        <m.div
           className="absolute inset-0 rounded-full border border-jarvis-cyan"
           animate={{ scale: [1, 1.5, 1], opacity: [1, 0, 1] }}
           transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
         />
-        <motion.div
+        <m.div
           className="absolute inset-1 rounded-full border border-jarvis-cyan opacity-60"
           animate={{ scale: [1, 1.3, 1], opacity: [0.6, 0, 0.6] }}
           transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut', delay: 0.3 }}

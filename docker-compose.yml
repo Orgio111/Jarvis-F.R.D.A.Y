@@ -96,6 +96,11 @@ services:
       OTEL_ENABLED: "${OTEL_ENABLED:-false}"
       OTEL_SERVICE_NAME: "jarvis-python-ai-service"
       JAEGER_ENDPOINT: "http://jaeger:14268/api/traces"
+
+      # ── Persistent data directory (SQLite DB + FAISS index) ─────────────────
+      DATA_DIR: "/app/data"
+    volumes:
+      - jarvis-data:/app/data
     ports:
       - "8100:8100"
     depends_on:
@@ -151,6 +156,37 @@ services:
       retries: 5
     logging: *default-logging
 
+  # ── Telegram bot ─────────────────────────────────────────────────────────────
+  telegram-bot:
+    build:
+      context: ./backend/bots
+      dockerfile: telegram/Dockerfile
+    restart: unless-stopped
+    environment:
+      TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
+      JARVIS_URL: "http://go-gateway:8000"
+      JARVIS_API_KEY: "${JARVIS_API_KEY:-}"
+    depends_on:
+      go-gateway:
+        condition: service_healthy
+    logging: *default-logging
+
+  # ── Discord bot ───────────────────────────────────────────────────────────────
+  discord-bot:
+    build:
+      context: ./backend/bots
+      dockerfile: discord/Dockerfile
+    restart: unless-stopped
+    environment:
+      DISCORD_BOT_TOKEN: "${DISCORD_BOT_TOKEN:-}"
+      DISCORD_GUILD_ID: "${DISCORD_GUILD_ID:-}"
+      JARVIS_URL: "http://go-gateway:8000"
+      JARVIS_API_KEY: "${JARVIS_API_KEY:-}"
+    depends_on:
+      go-gateway:
+        condition: service_healthy
+    logging: *default-logging
+
   # ── Prometheus ───────────────────────────────────────────────────────────────
   prometheus:
     image: prom/prometheus:v2.53.0
@@ -192,3 +228,4 @@ services:
 volumes:
   prometheus-data:
   grafana-data:
+  jarvis-data:

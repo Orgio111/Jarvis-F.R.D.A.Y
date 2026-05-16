@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
+import { freshness } from '@/lib/query/freshness';
 
 interface SearchStatus {
   enabled: boolean;
@@ -38,7 +39,7 @@ export function SearchPanel() {
     queryKey: ['search-status'],
     queryFn: () => apiClient.get<SearchStatus>('/search/status'),
     enabled: bootstrapReady,
-    staleTime: 60_000,
+    ...freshness.slowlyChanging,
   });
 
   const searchMut = useMutation({

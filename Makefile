@@ -92,7 +92,7 @@ build-rust:
 	cd $(RUST_DIR) && cargo build --release
 
 build-frontend:
-	cd $(FRONTEND_DIR) && npm install && npm run build
+	cd $(FRONTEND_DIR) && npm install --legacy-peer-deps && npm run build
 
 # ─── Test ─────────────────────────────────────────────────────────────────────
 test: test-go test-python test-frontend
@@ -126,7 +126,7 @@ install-python-deps:
 	cd $(PYTHON_DIR) && pip install -e ".[dev]"
 
 install-frontend-deps:
-	cd $(FRONTEND_DIR) && npm install
+	cd $(FRONTEND_DIR) && npm install --legacy-peer-deps
 
 install-tauri-deps:
 	cd $(FRONTEND_DIR) && npm install && cargo build --manifest-path src-tauri/Cargo.toml

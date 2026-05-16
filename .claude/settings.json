@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cat \"/c/Users/MNSMNS~1/AppData/Local/Temp/claude/c--Users-Mns-Mns-OneDrive-Documents-GitHub-Jarvis-F-R-D-A-Y/35930e8f-8320-43c1-b596-8df967c9dcbe/tasks/bjkpv2cin.output\" 2>&1 | head -80)",
+      "Read(//c/Users/MNSMNS~1/AppData/Local/Temp/claude/c--Users-Mns-Mns-OneDrive-Documents-GitHub-Jarvis-F-R-D-A-Y/35930e8f-8320-43c1-b596-8df967c9dcbe/tasks/**)",
+      "Read(//c/Users/MNSMNS~1/AppData/Local/Temp/claude//**)",
+      "Bash(find /tmp -name \"bjkpv2cin*\")",
+      "Read(//c/Users/**)",
+      "Bash(cat \"/tmp/claude/c--Users-Mns-Mns-OneDrive-Documents-GitHub-Jarvis-F-R-D-A-Y/35930e8f-8320-43c1-b596-8df967c9dcbe/tasks/bjkpv2cin.output\" 2>&1)",
+      "Read(//tmp/claude/c--Users-Mns-Mns-OneDrive-Documents-GitHub-Jarvis-F-R-D-A-Y/35930e8f-8320-43c1-b596-8df967c9dcbe/tasks/**)",
+      "Bash(curl -s http://localhost:8000/api/health)",
+      "Bash(curl -s \"http://localhost:16686/api/services\")"
+    ]
+  }
+}

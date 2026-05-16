@@ -49,17 +49,15 @@ pub async fn stream_events(
 ) -> Sse<impl futures::Stream<Item = Result<Event, axum::Error>>> {
     let receiver = broker.subscribe(&topic).await;
     let stream = BroadcastStream::new(receiver)
-        .filter_map(|result| async move {
-            match result {
-                Ok(event) => {
-                    let data = serde_json::to_string(&event).ok()?;
-                    Some(Ok(Event::default()
-                        .event(event.event_type.clone())
-                        .data(data)
-                        .id(event.id.clone())))
-                }
-                Err(_) => None,
+        .filter_map(|result| match result {
+            Ok(event) => {
+                let data = serde_json::to_string(&event).ok()?;
+                Some(Ok(Event::default()
+                    .event(event.event_type.clone())
+                    .data(data)
+                    .id(event.id.clone())))
             }
+            Err(_) => None,
         });
 
     Sse::new(stream).keep_alive(

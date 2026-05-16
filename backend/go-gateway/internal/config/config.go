@@ -23,6 +23,7 @@ type Config struct {
 	PrometheusEnabled bool
 	OTELEnabled       bool
 	OTELServiceName   string
+	OTELSampleRate    float64
 	JaegerEndpoint    string
 
 	GPUEnabled         bool
@@ -49,6 +50,7 @@ func Load() *Config {
 		PrometheusEnabled: getEnvBool("PROMETHEUS_ENABLED", true),
 		OTELEnabled:       getEnvBool("OTEL_ENABLED", true),
 		OTELServiceName:   getEnv("OTEL_SERVICE_NAME", "jarvis-gateway"),
+		OTELSampleRate:    getEnvFloat("OTEL_TRACES_SAMPLE_RATE", 1.0),
 		JaegerEndpoint:    getEnv("JAEGER_ENDPOINT", "http://localhost:14268/api/traces"),
 
 		GPUEnabled:          getEnvBool("GPU_ENABLED", true),
@@ -76,6 +78,18 @@ func getEnvBool(key string, fallback bool) bool {
 		return fallback
 	}
 	return b
+}
+
+func getEnvFloat(key string, fallback float64) float64 {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	f, err := strconv.ParseFloat(v, 64)
+	if err != nil {
+		return fallback
+	}
+	return f
 }
 
 func getEnvInt(key string, fallback int) int {

@@ -1,5 +1,4 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { useGpuStore } from './gpuStore';
 
 /**
@@ -29,7 +28,7 @@ export function GpuMiniIndicator() {
     : 'GPU off';
 
   return (
-    <motion.div
+    <m.div
       className="flex items-center gap-1.5 px-2 py-1 rounded border border-jarvis-border"
       whileHover={{ borderColor: 'rgba(0, 212, 255, 0.45)' }}
       title={
@@ -45,6 +44,6 @@ export function GpuMiniIndicator() {
         }`}
       />
       <span className={`text-xs font-mono ${color}`}>{label}</span>
-    </motion.div>
+    </m.div>
   );
 }

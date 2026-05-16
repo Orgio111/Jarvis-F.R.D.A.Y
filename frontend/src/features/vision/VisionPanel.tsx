@@ -5,6 +5,7 @@ import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
+import { freshness } from '@/lib/query/freshness';
 
 interface VisionStatus {
   enabled: boolean;
@@ -31,7 +32,7 @@ export function VisionPanel() {
     queryKey: ['vision-status'],
     queryFn: () => apiClient.get<VisionStatus>('/vision/status'),
     enabled: bootstrapReady,
-    staleTime: 30_000,
+    ...freshness.resourceState,
   });
 
   const analyzeMut = useMutation({

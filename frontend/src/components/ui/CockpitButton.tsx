@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 interface CockpitButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -33,7 +33,7 @@ export function CockpitButton({
   ...rest
 }: CockpitButtonProps) {
   return (
-    <motion.button
+    <m.button
       className={cn(
         'inline-flex items-center gap-2 rounded border font-medium transition-all duration-150 select-none',
         'disabled:opacity-40 disabled:cursor-not-allowed',
@@ -51,6 +51,6 @@ export function CockpitButton({
         icon
       )}
       {children}
-    </motion.button>
+    </m.button>
   );
 }

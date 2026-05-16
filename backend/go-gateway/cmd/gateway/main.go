@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -34,7 +35,7 @@ func main() {
 
 	// ─── OpenTelemetry ────────────────────────────────────────────────────────
 	ctx := context.Background()
-	otelShutdown, otelErr := observability.InitOTel(ctx, cfg.OTELServiceName, cfg.JaegerEndpoint)
+	otelShutdown, otelErr := observability.InitOTel(ctx, cfg.OTELServiceName, cfg.AppEnv, cfg.JaegerEndpoint, cfg.OTELSampleRate)
 	if otelErr != nil {
 		logger.Warn("otel init non-fatal error", zap.Error(otelErr))
 	}
@@ -69,11 +70,21 @@ func main() {
 	// ─── Router ───────────────────────────────────────────────────────────────
 	handler := routes.Build(cfg, aiProxy, redis, logger)
 
+	// Wrap the router with otelhttp so every inbound request automatically
+	// gets a root server span and propagated traceparent headers are honoured.
+	// The span name is overridden per-route by chi's RoutePattern in
+	// otelhttp.WithSpanNameFormatter for better Jaeger grouping.
+	tracedHandler := otelhttp.NewHandler(handler, "http.server",
+		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+			return r.Method + " " + r.URL.Path
+		}),
+	)
+
 	// ─── HTTP server ──────────────────────────────────────────────────────────
 	addr := fmt.Sprintf("%s:%s", cfg.AppHost, cfg.AppPort)
 	srv := &http.Server{
 		Addr:         addr,
-		Handler:      handler,
+		Handler:      tracedHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 120 * time.Second, // long for SSE streams
 		IdleTimeout:  60 * time.Second,

@@ -1,5 +1,5 @@
 import React from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 interface GlassPanelProps {
@@ -11,7 +11,7 @@ interface GlassPanelProps {
 
 export function GlassPanel({ children, className, hover = false, onClick }: GlassPanelProps) {
   return (
-    <motion.div
+    <m.div
       className={cn(
         'jarvis-panel',
         hover && 'jarvis-panel-hover cursor-pointer',
@@ -22,6 +22,6 @@ export function GlassPanel({ children, className, hover = false, onClick }: Glas
       transition={{ type: 'spring', stiffness: 300, damping: 30 }}
     >
       {children}
-    </motion.div>
+    </m.div>
   );
 }

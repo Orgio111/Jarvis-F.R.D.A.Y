@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useModels } from './useModels';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';

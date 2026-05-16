@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
+import { freshness } from '@/lib/query/freshness';
 
 interface SIStatus {
   enabled: boolean;
@@ -34,17 +35,17 @@ export function SelfImprovementPage() {
   const [context, setContext] = useState('');
 
   const { data: status } = useQuery<SIStatus>({
-    queryKey: ['si-status'],
+    queryKey: ['self-improvement-status'],
     queryFn: () => apiClient.get<SIStatus>('/self-improvement/status'),
     enabled: bootstrapReady,
-    staleTime: 15_000,
+    ...freshness.resourceState,
   });
 
   const { data: suggestionsData, isLoading } = useQuery<SuggestionsResponse>({
     queryKey: ['si-suggestions'],
     queryFn: () => apiClient.get<SuggestionsResponse>('/self-improvement/suggestions'),
     enabled: bootstrapReady,
-    refetchInterval: 10_000,
+    ...freshness.live,
   });
 
   const suggestMut = useMutation({

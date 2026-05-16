@@ -1,7 +1,7 @@
 import React, { useRef, useState, useCallback } from 'react';
 
 interface Props {
-  onSend: (content: string) => void;
+  onSend: (_content: string) => void;
   disabled?: boolean;
 }
 

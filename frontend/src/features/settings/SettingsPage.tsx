@@ -1,4 +1,3 @@
-import React from 'react';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';

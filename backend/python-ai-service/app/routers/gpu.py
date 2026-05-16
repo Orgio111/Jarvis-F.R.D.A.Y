@@ -3,10 +3,9 @@ from __future__ import annotations
 import time
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
-from app.core.envelopes import success, error
+from app.core.envelopes import success
 from app.core.logging import get_logger
 from app.gpu.detector import GPUDetector
 from app.gpu.workload_router import WorkloadRouter

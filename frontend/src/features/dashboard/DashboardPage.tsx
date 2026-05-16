@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
@@ -90,8 +89,9 @@ export function DashboardPage() {
     queryKey: ['health'],
     queryFn: () => apiClient.get<HealthResponse>('/health'),
     enabled: bootstrapReady,
-    refetchInterval: 30_000,
     staleTime: 20_000,
+    gcTime: 5 * 60_000,
+    refetchInterval: 30_000,
   });
 
   const sys = bootstrap?.system;

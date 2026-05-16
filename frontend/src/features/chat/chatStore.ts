@@ -6,11 +6,11 @@ interface ChatState {
   isStreaming: boolean;
   streamingMessageId: string | null;
   selectedModel: string;
-  addMessage: (msg: ChatMessage) => void;
-  updateMessage: (id: string, patch: Partial<ChatMessage>) => void;
-  appendToken: (id: string, token: string) => void;
-  setStreaming: (streaming: boolean, messageId: string | null) => void;
-  setSelectedModel: (model: string) => void;
+  addMessage: (_msg: ChatMessage) => void;
+  updateMessage: (_id: string, _patch: Partial<ChatMessage>) => void;
+  appendToken: (_id: string, _token: string) => void;
+  setStreaming: (_streaming: boolean, _messageId: string | null) => void;
+  setSelectedModel: (_model: string) => void;
   clearMessages: () => void;
 }
 

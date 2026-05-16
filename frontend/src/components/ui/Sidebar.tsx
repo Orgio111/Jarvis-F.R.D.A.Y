@@ -1,6 +1,4 @@
-import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
 
@@ -67,11 +65,7 @@ function SidebarItem({ item }: { item: NavItem }) {
       {({ isActive }) => (
         <>
           {isActive && (
-            <motion.div
-              className="absolute left-0 top-1 bottom-1 w-0.5 bg-jarvis-cyan rounded-r"
-              layoutId="sidebar-indicator"
-              transition={{ type: 'spring', stiffness: 400, damping: 35 }}
-            />
+            <span className="absolute left-0 top-1 bottom-1 w-0.5 bg-jarvis-cyan rounded-r" />
           )}
           <span className="text-base leading-none">{item.icon}</span>
           <span className="text-[9px] mt-0.5 font-mono uppercase tracking-wide">{item.label}</span>

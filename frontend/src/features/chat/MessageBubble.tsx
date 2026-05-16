@@ -1,5 +1,4 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import { m } from 'framer-motion';
 import type { ChatMessage } from './chatTypes';
 
 interface Props {
@@ -11,7 +10,7 @@ export function MessageBubble({ message }: Props) {
   const isError = message.status === 'error';
 
   return (
-    <motion.div
+    <m.div
       className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-3`}
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
@@ -55,6 +54,6 @@ export function MessageBubble({ message }: Props) {
           </div>
         )}
       </div>
-    </motion.div>
+    </m.div>
   );
 }

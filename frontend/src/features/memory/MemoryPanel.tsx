@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatusDot } from '@/components/ui/StatusDot';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
+import { freshness } from '@/lib/query/freshness';
 
 interface MemoryStatus {
   enabled: boolean;
@@ -34,7 +35,7 @@ export function MemoryPanel() {
     queryKey: ['memory-status'],
     queryFn: () => apiClient.get<MemoryStatus>('/memory/status'),
     enabled: bootstrapReady,
-    staleTime: 30_000,
+    ...freshness.resourceState,
   });
 
   const [query, setQuery] = useState('');

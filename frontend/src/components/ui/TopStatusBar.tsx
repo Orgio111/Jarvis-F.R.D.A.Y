@@ -1,5 +1,4 @@
-import React from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
 import { GpuMiniIndicator } from '@/features/gpu/GpuMiniIndicator';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
 
@@ -12,13 +11,6 @@ export function TopStatusBar() {
     systemStatus === 'healthy' ? 'text-jarvis-green' :
     systemStatus === 'degraded' ? 'text-jarvis-yellow' :
     'text-jarvis-text-dim';
-
-  const now = new Date().toLocaleTimeString('en-US', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false,
-  });
 
   return (
     <div
@@ -90,11 +82,11 @@ function ProviderChip({
 }
 
 function Clock() {
-  const [time, setTime] = React.useState(
+  const [time, setTime] = useState(
     new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
   );
 
-  React.useEffect(() => {
+  useEffect(() => {
     const id = setInterval(() => {
       setTime(
         new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),

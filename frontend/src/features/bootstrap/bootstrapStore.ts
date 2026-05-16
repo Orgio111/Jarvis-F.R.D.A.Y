@@ -11,13 +11,13 @@ interface BootstrapState {
   lastBootstrappedAt: string | null;
 
   setLoading: () => void;
-  setReady: (data: BootstrapData) => void;
-  setError: (message: string) => void;
+  setReady: (_data: BootstrapData) => void;
+  setError: (_message: string) => void;
   incrementRetry: () => void;
   reset: () => void;
 }
 
-export const useBootstrapStore = create<BootstrapState>((set, get) => ({
+export const useBootstrapStore = create<BootstrapState>((set) => ({
   status: 'idle',
   data: null,
   error: null,

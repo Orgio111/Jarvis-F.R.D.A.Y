@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
+import { freshness } from '@/lib/query/freshness';
 
 interface Tool {
   id: string;
@@ -42,7 +43,7 @@ export function ToolsPanel() {
     queryKey: ['tools'],
     queryFn: () => apiClient.get<ToolsListResponse>('/tools'),
     enabled: bootstrapReady,
-    staleTime: 30_000,
+    ...freshness.resourceState,
   });
 
   const execMut = useMutation({

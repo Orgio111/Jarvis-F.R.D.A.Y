@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
-import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
+import { freshness } from '@/lib/query/freshness';
 
 type Language = 'python' | 'shell';
 
@@ -40,14 +40,14 @@ export function TerminalPanel() {
   const bootstrapReady = useBootstrapStore((s) => s.status === 'ready');
   const [language, setLanguage] = useState<Language>('python');
   const [code, setCode] = useState(STARTER.python);
-  const [history, setHistory] = useState<HistoryEntry[]>([]);
+  const [, setHistory] = useState<HistoryEntry[]>([]);
   const outputRef = useRef<HTMLDivElement>(null);
 
   const { data: status } = useQuery<ExecStatus>({
     queryKey: ['execution-status'],
     queryFn: () => apiClient.get<ExecStatus>('/execution/status'),
     enabled: bootstrapReady,
-    staleTime: 60_000,
+    ...freshness.slowlyChanging,
   });
 
   const runMut = useMutation({
