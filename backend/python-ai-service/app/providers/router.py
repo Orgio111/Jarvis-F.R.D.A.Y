@@ -55,25 +55,32 @@ class ProviderRouter:
         return self._providers.get(provider_id)
 
     def get_active_provider(self) -> "BaseProvider | None":
+        providers = self.get_providers_in_priority_order()
+        return providers[0] if providers else None
+
+    def get_providers_in_priority_order(self) -> "list[BaseProvider]":
+        """Returns available providers in priority order (primary first, fallback second)."""
         mode = self._settings.ai_provider_routing_mode
         primary_id = self._settings.ai_provider_primary
         fallback_id = self._settings.ai_provider_fallback
 
-        if mode in ("primary",):
-            return self._providers.get(primary_id)
+        if mode == "primary":
+            p = self._providers.get(primary_id)
+            return [p] if p and p.is_available() else []
 
-        if mode in ("fallback",):
-            return self._providers.get(fallback_id)
+        if mode == "fallback":
+            p = self._providers.get(fallback_id)
+            return [p] if p and p.is_available() else []
 
-        # auto: prefer primary if available
+        # auto: primary first, then fallback
+        result: list[BaseProvider] = []
         primary = self._providers.get(primary_id)
         if primary and primary.is_available():
-            return primary
+            result.append(primary)
         fallback = self._providers.get(fallback_id)
         if fallback and fallback.is_available():
-            logger.info("routing_to_fallback", primary=primary_id, fallback=fallback_id)
-            return fallback
-        return None
+            result.append(fallback)
+        return result
 
     def get_all_providers(self) -> list["BaseProvider"]:
         return list(self._providers.values())

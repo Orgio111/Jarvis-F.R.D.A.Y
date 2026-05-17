@@ -5,7 +5,7 @@
  * No other feature endpoint is called before bootstrap succeeds.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect } from 'react';
 import apiClient from '@/lib/api/client';
 import type { BootstrapData } from '@/lib/api/types';
 import { useBootstrapStore } from './bootstrapStore';
@@ -21,49 +21,62 @@ function backoffDelay(retryCount: number): number {
 }
 
 export function useBootstrap() {
-  const { status, retryCount, setLoading, setReady, setError } = useBootstrapStore();
-  const abortRef = useRef<AbortController | null>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const { status, retryCount, resetKey, setLoading, setReady, setError, incrementRetry } =
+    useBootstrapStore();
 
   useEffect(() => {
-    if (status === 'ready') return;
+    let cancelled = false;
+    let abortController: AbortController | null = null;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-    async function fetchBootstrap() {
+    async function attempt(retryNum: number) {
+      if (cancelled) return;
+
+      abortController?.abort();
+      abortController = new AbortController();
       setLoading();
-      abortRef.current = new AbortController();
 
       try {
         const result = await apiClient.get<BootstrapData>('/bootstrap', {
-          signal: abortRef.current.signal,
+          signal: abortController.signal,
         });
-
-        // Hydrate all feature stores from bootstrap data
+        if (cancelled) return;
         hydrateStores(result);
         setReady(result);
       } catch (err) {
-        if ((err as Error).name === 'AbortError') return;
+        if (cancelled || (err as Error).name === 'AbortError') return;
+
         setError(getErrorMessage(err));
 
-        // Schedule retry with backoff
-        if (retryCount < MAX_RETRIES) {
-          const delay = backoffDelay(retryCount);
-          timerRef.current = setTimeout(fetchBootstrap, delay);
+        if (retryNum < MAX_RETRIES) {
+          incrementRetry();
+          const delay = backoffDelay(retryNum + 1);
+          retryTimer = setTimeout(() => attempt(retryNum + 1), delay);
         }
       }
     }
 
-    fetchBootstrap();
+    attempt(0);
 
     return () => {
-      abortRef.current?.abort();
-      if (timerRef.current) clearTimeout(timerRef.current);
+      cancelled = true;
+      abortController?.abort();
+      if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [retryCount]); // re-run when retryCount changes (after error)
+    // Re-run only when resetKey changes (user clicked Retry in RecoveryScreen).
+    // Zustand actions are stable and don't need to be deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
 
   return { status, retryCount };
 }
 
 function hydrateStores(data: BootstrapData): void {
-  // Hydrate GPU store
+  // Hydrate GPU store (this store is currently the only one with explicit setters)
   useGpuStore.getState().setStatus(data.gpu);
+
+  // Other bootstrap slices (system/providers/features/etc.) are consumed directly
+  // from `useBootstrapStore((s) => s.data)` in the UI. No additional Zustand
+  // stores exist for those slices in this codebase.
 }
+

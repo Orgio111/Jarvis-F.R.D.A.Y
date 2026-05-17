@@ -11,7 +11,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY pyproject.toml ./
 
 # Install base dependencies (no GPU extras by default)
-RUN pip install --no-cache-dir -e "."
+# Use non-editable install to avoid PEP660 build_editable hook issues.
+RUN pip install --no-cache-dir "."
 
 # Copy source
 COPY app/ ./app/
@@ -37,7 +38,22 @@ RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && ln -sf /usr/bin/python3 /usr/
 
 WORKDIR /app
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir -e ".[gpu-cuda]"
+
+# Upgrade pip and setuptools to ensure proper dependency resolution
+RUN echo "=== DIAGNOSTIC: Checking initial setuptools version ===" && \
+    python3 -c "import setuptools; print(f'Initial setuptools version: {setuptools.__version__}')" && \
+    pip install --no-cache-dir --upgrade pip setuptools wheel && \
+    echo "=== DIAGNOSTIC: Checking setuptools after upgrade ===" && \
+    python3 -c "import setuptools; print(f'Upgraded setuptools version: {setuptools.__version__}')" && \
+    echo "=== DIAGNOSTIC: Testing setuptools>=70 availability ===" && \
+    pip install --dry-run --no-cache-dir "setuptools>=70" || echo "setuptools>=70 not available via pip" && \
+    echo "=== DIAGNOSTIC: Available setuptools versions ===" && \
+    pip index versions setuptools || echo "Could not list setuptools versions"
+
+# Install base dependencies first, then GPU extras separately to ensure all deps are included
+RUN pip install --no-cache-dir "." && \
+    pip install --no-cache-dir ".[gpu-cuda]"
+
 COPY app/ ./app/
 
 ENV APP_HOST=0.0.0.0
@@ -45,6 +61,20 @@ ENV APP_PORT=8100
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 
+# Add pip binary directory to PATH
+ENV PATH="/usr/local/bin:$PATH"
+
 EXPOSE 8100
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8100", "--workers", "1"]
+# DIAGNOSTIC: Verify uvicorn installation (use || true to not fail build on grep)
+RUN echo "=== Installation Verification ===" && \
+    echo "Python: $(python3 --version)" && \
+    echo "Pip: $(pip --version)" && \
+    echo "Uvicorn check:" && \
+    (which uvicorn && uvicorn --version || python3 -m uvicorn --version) && \
+    echo "Key packages:" && \
+    (pip list | grep -E "uvicorn|fastapi|torch" || true) && \
+    echo "==================================="
+
+# Use python -m uvicorn to avoid any PATH issues
+CMD ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8100", "--workers", "1"]
