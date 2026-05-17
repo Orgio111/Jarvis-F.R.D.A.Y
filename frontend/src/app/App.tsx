@@ -1,10 +1,7 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
 import { Providers } from './providers';
 import { BootstrapGate } from '@/features/bootstrap/BootstrapGate';
 import { AppShell } from '@/components/ui/AppShell';
 import { AppRouter } from './router';
-import '@/styles/globals.css';
 
 function App() {
   return (
@@ -22,11 +19,5 @@ function App() {
     </Providers>
   );
 }
-
-ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
 
 export default App;
