@@ -34,15 +34,15 @@ func Build(cfg *config.Config, aiProxy *proxy.AIProxy, redis *redisclient.Client
 	healthH := handlers.NewHealthHandler(aiProxy, redis)
 	r.Get("/api/health", healthH.ServeHTTP)
 
-	// ─── Bootstrap (public; no session required) ─────────────────────────────
-	bootstrapH := handlers.NewBootstrapHandler(cfg, aiProxy)
-	r.Get("/api/bootstrap", bootstrapH.ServeHTTP)
-
 	// ─── All feature routes require the 3 canonical headers ──────────────────
 	r.Group(func(r chi.Router) {
 		r.Use(mw.Session)
 		r.Use(mw.ClientVersion)
 		r.Use(mw.RequestLogger(logger))
+
+		// Bootstrap
+		bootstrapH := handlers.NewBootstrapHandler(cfg, aiProxy)
+		r.Get("/api/bootstrap", bootstrapH.ServeHTTP)
 
 		// System
 		systemH := handlers.NewSystemHandler(cfg, aiProxy)

@@ -111,32 +111,26 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
 
     try:
         pr = ProviderRouter.get()
-        providers = pr.get_providers_in_priority_order()
-        if not providers:
+        provider = pr.get_active_provider()
+        if provider is None:
             return _json_error(503, "provider_unavailable", "No AI provider is available", correlation_id)
     except Exception as exc:
         logger.error("chat_provider_lookup_failed", error=str(exc))
         return _json_error(503, "provider_unavailable", str(exc), correlation_id)
 
-    # Resolve model ID from primary provider (or first available)
     if not model_id:
-        for p in providers:
-            try:
-                models = await p.list_models()
-                # Skip embedding/reranking models — pick first chat-capable one
-                chat_models = [m for m in models if not _is_embedding_model(m["id"])]
-                if chat_models:
-                    model_id = chat_models[0]["id"]
-                    break
-            except Exception:
-                continue
+        try:
+            models = await provider.list_models()
+            model_id = models[0]["id"] if models else ""
+        except Exception:
+            pass
 
     if not model_id:
         return _json_error(400, "model_required", "No model specified and no default model available", correlation_id)
 
     if stream:
         return StreamingResponse(
-            _stream_events(providers, messages, model_id, max_tokens, correlation_id, session_id, req_id, db, user_id),
+            _stream_events(provider, messages, model_id, max_tokens, correlation_id, session_id, req_id, db, user_id),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -150,37 +144,32 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
         "",
     )
 
-    last_exc: Exception | None = None
-    for provider in providers:
-        try:
-            result = await provider.chat(messages, model_id, max_tokens)
-            content = _extract_content(result)
+    try:
+        result = await provider.chat(messages, model_id, max_tokens)
+        content = _extract_content(result)
 
-            asyncio.ensure_future(_post_turn_update(db, user_msg, content, session_id, user_id))
+        # Background: store turn + update profile
+        asyncio.ensure_future(_post_turn_update(db, user_msg, content, session_id, user_id))
 
-            return success(
-                {
-                    "messageId": f"msg_{uuid4()}",
-                    "role": "assistant",
-                    "content": content,
-                    "model": model_id,
-                    "providerId": provider.provider_id,
-                    "finishReason": result.get("choices", [{}])[0].get("finish_reason", "stop"),
-                    "usage": result.get("usage"),
-                },
-                correlation_id,
-            )
-        except Exception as exc:
-            logger.warning("chat_provider_failed", provider=provider.provider_id, error=str(exc))
-            last_exc = exc
-            continue
-
-    logger.error("chat_all_providers_failed", error=str(last_exc))
-    return _json_error(502, "completion_error", f"All providers failed: {last_exc}", correlation_id)
+        return success(
+            {
+                "messageId": f"msg_{uuid4()}",
+                "role": "assistant",
+                "content": content,
+                "model": model_id,
+                "providerId": provider.provider_id,
+                "finishReason": result.get("choices", [{}])[0].get("finish_reason", "stop"),
+                "usage": result.get("usage"),
+            },
+            correlation_id,
+        )
+    except Exception as exc:
+        logger.error("chat_completion_failed", error=str(exc))
+        return _json_error(500, "completion_error", str(exc), correlation_id)
 
 
 async def _stream_events(
-    providers: list[Any],
+    provider: Any,
     messages: list[dict],
     model_id: str,
     max_tokens: int | None,
@@ -192,40 +181,16 @@ async def _stream_events(
 ) -> Any:
     message_id = f"msg_{uuid4()}"
 
-    # Try providers in order; once streaming starts we commit to that provider.
-    used_provider: Any = None
-    stream_iter: Any = None
-    last_err: str = ""
-
-    for provider in providers:
-        try:
-            # Kick off the async generator — failures surface on first iteration.
-            stream_iter = provider.stream_chat(messages, model_id, max_tokens)
-            used_provider = provider
-            break
-        except Exception as exc:
-            logger.warning("chat_stream_provider_failed_init", provider=provider.provider_id, error=str(exc))
-            last_err = str(exc)
-            continue
-
-    if used_provider is None or stream_iter is None:
-        yield _sse(new_event(
-            "CHAT_STREAM_ERROR",
-            {"messageId": message_id, "error": f"All providers failed: {last_err}"},
-            correlation_id, req_id, session_id,
-        ))
-        yield "data: [DONE]\n\n"
-        return
-
+    # start event
     yield _sse(new_event(
         "CHAT_STREAM_START",
-        {"messageId": message_id, "model": model_id, "providerId": used_provider.provider_id},
+        {"messageId": message_id, "model": model_id, "providerId": provider.provider_id},
         correlation_id, req_id, session_id,
     ))
 
     full_content: list[str] = []
     try:
-        async for raw_chunk in stream_iter:
+        async for raw_chunk in provider.stream_chat(messages, model_id, max_tokens):
             try:
                 chunk_data = json.loads(raw_chunk)
             except Exception:
@@ -256,12 +221,13 @@ async def _stream_events(
             "messageId": message_id,
             "content": assembled,
             "model": model_id,
-            "providerId": used_provider.provider_id,
+            "providerId": provider.provider_id,
         },
         correlation_id, req_id, session_id,
     ))
     yield "data: [DONE]\n\n"
 
+    # Background: store turn in memory + update profile
     if db is not None and assembled:
         user_msg = next(
             (m.get("content", "") for m in reversed(messages) if m.get("role") == "user"),
@@ -287,12 +253,3 @@ def _extract_content(result: dict) -> str:
         return result["choices"][0]["message"]["content"] or ""
     except (KeyError, IndexError):
         return ""
-
-
-_EMBEDDING_KEYWORDS = ("embed", "rerank", "reranker", "bge-", "e5-", "gte-")
-
-
-def _is_embedding_model(model_id: str) -> bool:
-    """Returns True for models that only support embeddings/reranking, not chat."""
-    lower = model_id.lower()
-    return any(kw in lower for kw in _EMBEDDING_KEYWORDS)

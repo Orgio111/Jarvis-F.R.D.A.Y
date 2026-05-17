@@ -9,9 +9,7 @@
 
 import { env, apiUrl } from '@/lib/config/env';
 import { getSessionId, generateRequestId } from '@/lib/session/session';
-
 import { ApiError, NetworkError } from './errors';
-
 import type { ApiResponse, ApiSuccess } from './types';
 
 interface RequestOptions {

@@ -16,10 +16,9 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 \
     -o /bin/gateway ./cmd/gateway
 
 # ─── Runtime ──────────────────────────────────────────────────────────────────
-FROM alpine:3.20
+FROM scratch
 
-RUN apk add --no-cache ca-certificates wget
-
+COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=builder /bin/gateway /gateway
 
 EXPOSE 8000

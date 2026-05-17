@@ -18,7 +18,7 @@ export function BootstrapGate({ children }: Props) {
   const { error, retryCount } = useBootstrapStore();
 
   return (
-    <AnimatePresence>
+    <AnimatePresence mode="wait">
       {status === 'ready' ? (
         <m.div
           key="app"
@@ -33,6 +33,7 @@ export function BootstrapGate({ children }: Props) {
         <m.div
           key="recovery"
           className="w-full h-full"
+          initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
         >
           <RecoveryScreen error={error ?? 'Unknown error'} retryCount={retryCount} />
@@ -41,6 +42,7 @@ export function BootstrapGate({ children }: Props) {
         <m.div
           key="loading"
           className="w-full h-full flex items-center justify-center bg-jarvis-bg"
+          initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >

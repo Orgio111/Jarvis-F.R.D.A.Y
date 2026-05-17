@@ -9,8 +9,6 @@ interface BootstrapState {
   error: string | null;
   retryCount: number;
   lastBootstrappedAt: string | null;
-  /** Increments each time reset() is called so useBootstrap's effect can re-trigger. */
-  resetKey: number;
 
   setLoading: () => void;
   setReady: (_data: BootstrapData) => void;
@@ -25,7 +23,6 @@ export const useBootstrapStore = create<BootstrapState>((set) => ({
   error: null,
   retryCount: 0,
   lastBootstrappedAt: null,
-  resetKey: 0,
 
   setLoading: () => set({ status: 'loading', error: null }),
 
@@ -39,19 +36,12 @@ export const useBootstrapStore = create<BootstrapState>((set) => ({
     }),
 
   setError: (message) =>
-    set({ status: 'error', error: message }),
+    set((state) => ({ status: 'error', error: message, retryCount: state.retryCount + 1 })),
 
   incrementRetry: () => set((state) => ({ retryCount: state.retryCount + 1 })),
 
   reset: () =>
-    set((state) => ({
-      status: 'idle',
-      data: null,
-      error: null,
-      retryCount: 0,
-      lastBootstrappedAt: null,
-      resetKey: state.resetKey + 1,
-    })),
+    set({ status: 'idle', data: null, error: null, retryCount: 0, lastBootstrappedAt: null }),
 }));
 
 // ─── Typed selectors ──────────────────────────────────────────────────────────

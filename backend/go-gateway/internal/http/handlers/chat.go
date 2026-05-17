@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/orgio111/jarvis/go-gateway/internal/config"
@@ -74,41 +73,26 @@ func (h *ChatHandler) streamCompletions(
 ) {
 	flusher, ok := w.(http.Flusher)
 	if !ok {
-		contracts.WriteServiceUnavailable(w, correlationID, "streaming not supported by this response writer")
-		return
-	}
-
-	pythonURL := h.cfg.PythonAIServiceURL
-	if pythonURL == "" {
-		contracts.WriteServiceUnavailable(w, correlationID, "python-ai-service is not configured (empty PythonAIServiceURL)")
-		return
-	}
-
-	// Basic validation: require scheme/host so we don't create invalid outbound requests.
-	parsed, parseErr := url.Parse(pythonURL)
-	if parseErr != nil || parsed == nil || parsed.Scheme == "" || parsed.Host == "" {
-		contracts.WriteServiceUnavailable(w, correlationID,
-			"python-ai-service is not configured (invalid PythonAIServiceURL: "+pythonURL+")")
+		contracts.WriteInternalError(w, correlationID)
 		return
 	}
 
 	body["stream"] = true
 	payload, err := json.Marshal(body)
 	if err != nil {
-		contracts.WriteServiceUnavailable(w, correlationID, "failed to serialize chat request payload")
+		contracts.WriteInternalError(w, correlationID)
 		return
 	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
 
-	outboundURL := pythonURL + "/chat/completions"
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		outboundURL,
+		h.cfg.PythonAIServiceURL+"/chat/completions",
 		bytes.NewReader(payload),
 	)
 	if err != nil {
-		contracts.WriteServiceUnavailable(w, correlationID, "failed to create request to python-ai-service")
+		contracts.WriteInternalError(w, correlationID)
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -120,7 +104,7 @@ func (h *ChatHandler) streamCompletions(
 	streamClient := &http.Client{Timeout: 0}
 	resp, err := streamClient.Do(req)
 	if err != nil {
-		contracts.WriteServiceUnavailable(w, correlationID, "python-ai-service request failed")
+		contracts.WriteServiceUnavailable(w, correlationID, "AI service unavailable")
 		return
 	}
 	defer resp.Body.Close()
@@ -148,7 +132,6 @@ func (h *ChatHandler) streamCompletions(
 			continue
 		}
 		if _, err := io.WriteString(w, line+"\n\n"); err != nil {
-			contracts.WriteServiceUnavailable(w, correlationID, "failed to stream response to client")
 			return
 		}
 		flusher.Flush()
