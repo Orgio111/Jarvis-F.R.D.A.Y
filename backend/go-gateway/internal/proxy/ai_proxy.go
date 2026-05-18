@@ -143,6 +143,59 @@ func (p *AIProxy) do(ctx context.Context, method, path string, body any, correla
 	return result.(*ProxyResult), nil
 }
 
+// StreamResult holds the response from Stream — caller must close Body.
+type StreamResult struct {
+	Body       io.ReadCloser
+	StatusCode int
+}
+
+// Stream opens a streaming POST request through the circuit breaker.
+// On success the caller owns resp.Body and must close it.
+// If the circuit is open it returns ErrCircuitOpen without making any network call.
+func (p *AIProxy) Stream(ctx context.Context, path string, body any, correlationID, sessionID string) (*StreamResult, error) {
+	// Reject immediately if circuit is already open — no point making the outbound call.
+	if state := p.cb.State(); state == gobreaker.StateOpen {
+		return nil, ErrCircuitOpen
+	}
+
+	data, err := json.Marshal(body)
+	if err != nil {
+		return nil, fmt.Errorf("marshal stream request body: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+path, newBytesReader(data))
+	if err != nil {
+		return nil, fmt.Errorf("create stream request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Correlation-ID", correlationID)
+	if sessionID != "" {
+		req.Header.Set("X-Session-ID", sessionID)
+	}
+	req.Header.Set("X-Source", "go-gateway")
+	req.Header.Set("Accept", "text/event-stream")
+
+	// Use a zero-timeout client so the stream isn't cut off mid-response.
+	streamClient := &http.Client{Timeout: 0, Transport: p.httpClient.Transport}
+	resp, err := streamClient.Do(req)
+	if err != nil {
+		// Record the failure so the breaker counts it.
+		_, _ = p.cb.Execute(func() (any, error) { return nil, err })
+		return nil, fmt.Errorf("ai service stream request: %w", err)
+	}
+
+	if resp.StatusCode >= 500 {
+		_ = resp.Body.Close()
+		// Record 5xx as a failure for the circuit breaker.
+		_, _ = p.cb.Execute(func() (any, error) {
+			return nil, fmt.Errorf("ai service stream returned %d", resp.StatusCode)
+		})
+		return nil, fmt.Errorf("ai service stream returned %d", resp.StatusCode)
+	}
+
+	return &StreamResult{Body: resp.Body, StatusCode: resp.StatusCode}, nil
+}
+
 // DecodeInto unmarshals the proxy result body into v.
 func (r *ProxyResult) DecodeInto(v any) error {
 	return json.Unmarshal(r.Body, v)

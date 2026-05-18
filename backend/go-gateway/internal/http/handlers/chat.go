@@ -2,12 +2,11 @@ package handlers
 
 import (
 	"bufio"
-	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/orgio111/jarvis/go-gateway/internal/config"
@@ -65,7 +64,7 @@ func (h *ChatHandler) Completions(w http.ResponseWriter, r *http.Request) {
 	contracts.WriteSuccess(w, correlationID, data)
 }
 
-// streamCompletions pipes the Python SSE stream directly to the HTTP response.
+// streamCompletions pipes the Python SSE stream through AIProxy (circuit breaker aware).
 func (h *ChatHandler) streamCompletions(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -78,62 +77,23 @@ func (h *ChatHandler) streamCompletions(
 		return
 	}
 
-	pythonURL := h.cfg.PythonAIServiceURL
-	if pythonURL == "" {
-		contracts.WriteServiceUnavailable(w, correlationID, "python-ai-service is not configured (empty PythonAIServiceURL)")
-		return
-	}
-
-	// Basic validation: require scheme/host so we don't create invalid outbound requests.
-	parsed, parseErr := url.Parse(pythonURL)
-	if parseErr != nil || parsed == nil || parsed.Scheme == "" || parsed.Host == "" {
-		contracts.WriteServiceUnavailable(w, correlationID,
-			"python-ai-service is not configured (invalid PythonAIServiceURL: "+pythonURL+")")
-		return
-	}
-
 	body["stream"] = true
-	payload, err := json.Marshal(body)
-	if err != nil {
-		contracts.WriteServiceUnavailable(w, correlationID, "failed to serialize chat request payload")
-		return
-	}
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Minute)
 	defer cancel()
 
-	outboundURL := pythonURL + "/chat/completions"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost,
-		outboundURL,
-		bytes.NewReader(payload),
-	)
+	stream, err := h.aiProxy.Stream(ctx, "/chat/completions", body, correlationID, sessionID)
 	if err != nil {
-		contracts.WriteServiceUnavailable(w, correlationID, "failed to create request to python-ai-service")
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Correlation-ID", correlationID)
-	req.Header.Set("X-Session-ID", sessionID)
-	req.Header.Set("X-Source", "go-gateway")
-	req.Header.Set("Accept", "text/event-stream")
-
-	streamClient := &http.Client{Timeout: 0}
-	resp, err := streamClient.Do(req)
-	if err != nil {
+		if errors.Is(err, proxy.ErrCircuitOpen) {
+			contracts.WriteCircuitOpen(w, correlationID, "ai-service")
+			return
+		}
 		contracts.WriteServiceUnavailable(w, correlationID, "python-ai-service request failed")
 		return
 	}
-	defer resp.Body.Close()
+	defer stream.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		raw, _ := io.ReadAll(resp.Body)
-		var errEnv interface{}
-		_ = json.Unmarshal(raw, &errEnv)
-		contracts.WriteError(w, correlationID, resp.StatusCode, "chat_error", "chat service error", nil)
-		return
-	}
-
-	// Set SSE headers and start streaming
+	// Set SSE headers and start streaming.
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
@@ -141,14 +101,13 @@ func (h *ChatHandler) streamCompletions(
 	w.WriteHeader(http.StatusOK)
 	flusher.Flush()
 
-	scanner := bufio.NewScanner(resp.Body)
+	scanner := bufio.NewScanner(stream.Body)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line == "" {
 			continue
 		}
-		if _, err := io.WriteString(w, line+"\n\n"); err != nil {
-			contracts.WriteServiceUnavailable(w, correlationID, "failed to stream response to client")
+		if _, writeErr := io.WriteString(w, line+"\n\n"); writeErr != nil {
 			return
 		}
 		flusher.Flush()
