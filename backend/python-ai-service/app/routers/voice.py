@@ -95,6 +95,18 @@ async def speech_to_text(
         return error("stt_error", f"Transcription failed: {exc}", correlation_id=correlation_id)
 
 
+def _run_coqui(model_name: str, text: str, language: str, speed: float, device: str, out_path: str) -> None:
+    """Blocking Coqui TTS synthesis — call from an executor thread."""
+    from TTS.api import TTS as CoquiTTS  # type: ignore[import]
+    tts = CoquiTTS(model_name=model_name, progress_bar=False).to(device)
+    tts.tts_to_file(
+        text=text,
+        file_path=out_path,
+        language=language if tts.is_multi_lingual else None,
+        speed=speed,
+    )
+
+
 @router.post("/voice/tts")
 async def text_to_speech(request: Request) -> Any:
     """Synthesise speech from text. Returns audio/wav bytes."""
@@ -125,23 +137,75 @@ async def text_to_speech(request: Request) -> Any:
             content=error("invalid_request", "text is required", correlation_id=correlation_id),
         )
 
+    voice_id: str = body.get("voice", "")
+    language: str = body.get("language", "en")
+    speed: float = float(body.get("speed", 1.0))
+
+    gpu_info = GPUDetector.get_info()
+    settings = get_settings()
+    use_gpu = gpu_info.cuda_available and settings.tts_gpu_enabled != "false"
+
+    # ── Try Coqui TTS (GPU-capable) ──────────────────────────────────────────
     try:
-        import pyttsx3  # type: ignore[import]
-        engine = pyttsx3.init()
+        from TTS.api import TTS as CoquiTTS  # type: ignore[import]
+
+        device = "cuda" if use_gpu else "cpu"
+        model_name = voice_id if voice_id else "tts_models/en/ljspeech/tacotron2-DDC"
+
+        wr = _get_wr()
         tmp_path = f"/tmp/tts_{uuid.uuid4().hex}.wav"
-        engine.save_to_file(text, tmp_path)
-        engine.runAndWait()
+
+        async def _synthesise_coqui() -> None:
+            import asyncio
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, _run_coqui, model_name, text, language, speed, device, tmp_path)
+
+        if wr is not None:
+            async with wr.acquire("tts"):
+                await _synthesise_coqui()
+        else:
+            await _synthesise_coqui()
+
+        import os as _os
         with open(tmp_path, "rb") as f:
             audio_bytes = f.read()
-        import os
-        os.unlink(tmp_path)
+        _os.unlink(tmp_path)
         return Response(content=audio_bytes, media_type="audio/wav")
+
+    except ImportError:
+        pass  # Coqui TTS not installed — fall back
+    except Exception as exc:
+        logger.warning("coqui_tts_failed", error=str(exc))
+
+    # ── Fallback: pyttsx3 (CPU-only) ─────────────────────────────────────────
+    try:
+        import pyttsx3  # type: ignore[import]
+        import asyncio, os as _os
+
+        tmp_path = f"/tmp/tts_{uuid.uuid4().hex}.wav"
+
+        def _run_pyttsx3() -> None:
+            engine = pyttsx3.init()
+            if speed != 1.0:
+                rate = engine.getProperty("rate")
+                engine.setProperty("rate", int(rate * speed))
+            engine.save_to_file(text, tmp_path)
+            engine.runAndWait()
+
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, _run_pyttsx3)
+
+        with open(tmp_path, "rb") as f:
+            audio_bytes = f.read()
+        _os.unlink(tmp_path)
+        return Response(content=audio_bytes, media_type="audio/wav")
+
     except ImportError:
         pass
     except Exception as exc:
         logger.warning("pyttsx3_tts_failed", error=str(exc))
 
-    # Fallback: return a 204 (no content) — TTS not available
+    # No TTS engine available
     return Response(status_code=204)
 
 
@@ -165,11 +229,22 @@ async def voice_status(request: Request) -> dict:
         pass
 
     tts_available = False
+    tts_engine_name = "none"
+    tts_device = "cpu"
+
     try:
-        import pyttsx3  # type: ignore[import] # noqa: F401
+        from TTS.api import TTS as CoquiTTS  # type: ignore[import] # noqa: F401
         tts_available = True
+        tts_engine_name = "coqui"
+        gpu_info = GPUDetector.get_info()
+        tts_device = "cuda" if gpu_info.cuda_available and settings.tts_gpu_enabled != "false" else "cpu"
     except ImportError:
-        pass
+        try:
+            import pyttsx3  # type: ignore[import] # noqa: F401
+            tts_available = True
+            tts_engine_name = "pyttsx3"
+        except ImportError:
+            pass
 
     return success(
         {
@@ -183,8 +258,9 @@ async def voice_status(request: Request) -> dict:
             "tts": {
                 "enabled": settings.tts_enabled,
                 "available": tts_available,
-                "engine": settings.tts_engine,
-                "device": "cpu",
+                "engine": tts_engine_name,
+                "device": tts_device,
+                "gpuEnabled": settings.tts_gpu_enabled,
             },
         },
         correlation_id,

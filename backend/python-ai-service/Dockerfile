@@ -60,13 +60,15 @@ RUN pip install --no-cache-dir "numpy>=1.26.0"
 # ── Step 3: base service deps (no torch pulled here — already installed) ───────
 RUN pip install --no-cache-dir "."
 
-# ── Step 4: GPU extras (sentence-transformers, faiss-cpu, faster-whisper, onnx) 
+# ── Step 4: GPU extras (sentence-transformers, faiss-cpu, faster-whisper, onnx, TTS)
 # torch is already present so pip won't re-download it.
+# TTS (Coqui) uses torch for GPU inference — listed last so PyTorch wheel isn't overwritten.
 RUN pip install --no-cache-dir \
     "sentence-transformers>=3.0.0" \
     "faiss-cpu>=1.8.0" \
     "faster-whisper>=1.0.3" \
-    "onnxruntime-gpu>=1.18.0"
+    "onnxruntime-gpu>=1.18.0" \
+    "TTS>=0.22.0"
 
 COPY app/ ./app/
 

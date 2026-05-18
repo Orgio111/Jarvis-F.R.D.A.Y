@@ -51,6 +51,9 @@ gpu-cuda = [
     "faster-whisper>=1.0.3",
     # onnxruntime-gpu speeds up faster-whisper on CUDA
     "onnxruntime-gpu>=1.18.0",
+    # GPU TTS — TTS (Coqui) uses CUDA via torch; falls back to CPU if no GPU.
+    # Optional: only pulled in the GPU image to keep base image slim.
+    "TTS>=0.22.0",
 ]
 dev = [
     "pytest>=8.2.0",
