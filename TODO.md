@@ -7,13 +7,10 @@
 - memory_service.py embedder → now uses `WorkloadRouter.acquire("embeddings")` semaphore
 - docker-compose.yml default build target `gpu` → changed to `base` (GPU users use `docker-compose.gpu.yml`)
 - docker-compose.yml `deploy.resources` NVIDIA block removed from default compose (breaks CPU-only Docker)
+- Chat streaming circuit breaker → `AIProxy.Stream()` added; `streamCompletions` now routes through
+  it — circuit_open → 503/circuit_open envelope on tripped state (commit c57dd45)
 
 ## Remaining known gaps (low priority)
-
-- [ ] **Chat streaming circuit breaker**: `streamCompletions` in `go-gateway/internal/http/handlers/chat.go`
-  bypasses `AIProxy.Post` and makes a raw HTTP call → 5xx from python-ai-service returns 503 with no
-  `circuit_open` error code. Consider refactoring to use a shared transport so the circuit breaker
-  covers streaming too. Impact is cosmetic (client gets 503 either way).
 
 - [ ] **TTS GPU engine**: `pyttsx3` is CPU-only. `tts_gpu_enabled=auto` in config has no effect.
   No GPU TTS engine is wired up. Acceptable until a use case requires low-latency TTS at scale.
