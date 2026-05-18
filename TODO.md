@@ -10,9 +10,11 @@
 - Chat streaming circuit breaker → `AIProxy.Stream()` added; `streamCompletions` now routes through
   it — circuit_open → 503/circuit_open envelope on tripped state (commit c57dd45)
 
-## Remaining known gaps (low priority)
+- TTS GPU engine → Coqui TTS (TTS>=0.22.0) added to gpu-cuda extras and Dockerfile;
+  voice.py tries CoquiTTS on cuda first, falls back to pyttsx3 CPU, then 204 (commit b40dcea)
+- GATEWAY_API_KEY rotation → apikey.go now accepts GATEWAY_API_KEY / _KEY_1 / _KEY_2;
+  deploy new key as _KEY_2 while _KEY_1 is live, remove _KEY_1 after migration (commit b40dcea)
 
-- [ ] **TTS GPU engine**: `pyttsx3` is CPU-only. `tts_gpu_enabled=auto` in config has no effect.
-  No GPU TTS engine is wired up. Acceptable until a use case requires low-latency TTS at scale.
+## Remaining known gaps
 
-- [ ] **GATEWAY_API_KEY rotation**: No dual-key support for zero-downtime key rotation in production.
+None — all known gaps resolved.
