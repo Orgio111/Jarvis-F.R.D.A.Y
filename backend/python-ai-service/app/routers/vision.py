@@ -14,6 +14,12 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+def _get_wr():
+    """Lazy import to avoid circular deps at module load time."""
+    from app.routers.gpu import get_workload_router
+    return get_workload_router()
+
+
 @router.post("/vision/analyze")
 async def analyze_image(
     request: Request,
@@ -66,13 +72,26 @@ async def analyze_image(
         except Exception as exc:
             return _vision_unavailable(correlation_id, str(exc))
 
-        # Try chat with the vision message
-        try:
+        # Acquire a GPU semaphore slot so concurrent vision calls can't OOM the GPU.
+        # If WorkloadRouter isn't ready yet (early lifespan), we skip the semaphore.
+        wr = _get_wr()
+
+        async def _do_vision():
             result = await provider.chat(
                 messages=vision_messages,
                 model_id=settings.default_chat_model or "",
                 max_tokens=512,
             )
+            return result
+
+        # Try chat with the vision message
+        try:
+            if wr is not None:
+                async with wr.acquire("vision"):
+                    result = await _do_vision()
+            else:
+                result = await _do_vision()
+
             content = _extract_content(result)
             return success(
                 {

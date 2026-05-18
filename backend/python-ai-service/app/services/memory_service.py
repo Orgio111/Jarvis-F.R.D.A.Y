@@ -244,7 +244,22 @@ async def _embed_and_add(db: AsyncSession, entry: MemoryEntry) -> None:
 
     import faiss  # type: ignore
 
-    vec = _embedder.encode([entry.content], normalize_embeddings=True).astype(np.float32)  # type: ignore[union-attr]
+    # Use WorkloadRouter semaphore to avoid concurrent embedding OOM on GPU.
+    # Falls back gracefully if WorkloadRouter hasn't initialised yet.
+    try:
+        from app.routers.gpu import get_workload_router
+        wr = get_workload_router()
+    except Exception:
+        wr = None
+
+    async def _encode():
+        return _embedder.encode([entry.content], normalize_embeddings=True).astype(np.float32)  # type: ignore[union-attr]
+
+    if wr is not None:
+        async with wr.acquire("embeddings"):
+            vec = await _encode()
+    else:
+        vec = await _encode()
 
     if _faiss_index.ntotal == 0:  # type: ignore[union-attr]
         dim = vec.shape[1]

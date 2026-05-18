@@ -16,6 +16,20 @@ from app.gpu.device_manager import DeviceManager
 logger = get_logger(__name__)
 router = APIRouter()
 
+# Module-level WhisperModel cache — keyed by "<model_size>:<device>:<compute_type>"
+# Loading the model once per process avoids ~5 s cold-start on every STT request.
+_whisper_cache: dict[str, "WhisperModel"] = {}  # type: ignore[name-defined]
+
+
+def _get_whisper_model(model_size: str, device: str, compute_type: str) -> "WhisperModel":  # type: ignore[name-defined]
+    from faster_whisper import WhisperModel  # type: ignore[import]
+    key = f"{model_size}:{device}:{compute_type}"
+    if key not in _whisper_cache:
+        logger.info("whisper_model_loading", key=key)
+        _whisper_cache[key] = WhisperModel(model_size, device=device, compute_type=compute_type)
+        logger.info("whisper_model_loaded", key=key)
+    return _whisper_cache[key]
+
 
 def _get_wr():
     """Lazy import to avoid circular deps at module load time."""
@@ -36,7 +50,7 @@ async def speech_to_text(
         return error("stt_disabled", "Speech-to-text is disabled", correlation_id=correlation_id)
 
     try:
-        from faster_whisper import WhisperModel  # type: ignore[import]
+        import faster_whisper  # type: ignore[import]  # noqa: F401
     except ImportError:
         return error(
             "stt_unavailable",
@@ -53,7 +67,7 @@ async def speech_to_text(
             # Use WorkloadRouter so the semaphore prevents concurrent OOM on GPU
             async with wr.acquire("stt") as device:
                 compute_type = DeviceManager.resolve_compute_type("auto", device)
-                model = WhisperModel(settings.stt_model_size, device=device, compute_type=compute_type)
+                model = _get_whisper_model(settings.stt_model_size, device, compute_type)
                 segments, info = model.transcribe(audio_io, beam_size=5)
                 transcript = "".join(s.text for s in segments).strip()
         else:
@@ -63,7 +77,7 @@ async def speech_to_text(
                 "auto", gpu_info.cuda_available and settings.stt_gpu_enabled, True
             )
             compute_type = DeviceManager.resolve_compute_type("auto", device)
-            model = WhisperModel(settings.stt_model_size, device=device, compute_type=compute_type)
+            model = _get_whisper_model(settings.stt_model_size, device, compute_type)
             segments, info = model.transcribe(audio_io, beam_size=5)
             transcript = "".join(s.text for s in segments).strip()
 

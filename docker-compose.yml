@@ -12,7 +12,7 @@ version: "3.9"
 #   OPENROUTER_API_KEY=...
 #
 # GPU (NVIDIA):
-#   Uncomment the `deploy:` block under python-ai-service to enable GPU passthrough.
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
 # ─────────────────────────────────────────────────────────────────────────────
 
 x-logging: &default-logging
@@ -67,8 +67,9 @@ services:
     build:
       context: ./backend/python-ai-service
       dockerfile: Dockerfile
-      # Use the GPU stage when NVIDIA runtime is available; falls back gracefully.
-      target: "${PYTHON_AI_BUILD_TARGET:-gpu}"
+      # Default to the CPU/base image. GPU users should use docker-compose.gpu.yml
+      # or set PYTHON_AI_BUILD_TARGET=gpu in their .env file.
+      target: "${PYTHON_AI_BUILD_TARGET:-base}"
     restart: unless-stopped
     environment:
       APP_ENV: development
@@ -115,16 +116,11 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    # ── GPU passthrough (NVIDIA Container Toolkit required on host) ──────────
-    # Install: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
-    # RTX 4050 Laptop: sm_89 (Ada Lovelace) — fully supported with CUDA 12.x
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+    # ── GPU passthrough ───────────────────────────────────────────────────────
+    # NVIDIA users: use docker-compose.gpu.yml instead.
+    #   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+    # The deploy.resources block is intentionally omitted here to avoid
+    # breaking CPU-only Docker environments (no NVIDIA Container Toolkit).
     logging: *default-logging
 
   # ── Go API gateway ───────────────────────────────────────────────────────────
