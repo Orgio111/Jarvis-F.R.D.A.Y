@@ -42,16 +42,8 @@ RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && ln -sf /usr/bin/python3 /usr/
 WORKDIR /app
 COPY pyproject.toml ./
 
-# Upgrade pip and setuptools to ensure proper dependency resolution
-RUN echo "=== DIAGNOSTIC: Checking initial setuptools version ===" && \
-    python3 -c "import setuptools; print(f'Initial setuptools version: {setuptools.__version__}')" && \
-    pip install --no-cache-dir --upgrade pip setuptools wheel && \
-    echo "=== DIAGNOSTIC: Checking setuptools after upgrade ===" && \
-    python3 -c "import setuptools; print(f'Upgraded setuptools version: {setuptools.__version__}')" && \
-    echo "=== DIAGNOSTIC: Testing setuptools>=70 availability ===" && \
-    pip install --dry-run --no-cache-dir "setuptools>=70" || echo "setuptools>=70 not available via pip" && \
-    echo "=== DIAGNOSTIC: Available setuptools versions ===" && \
-    pip index versions setuptools || echo "Could not list setuptools versions"
+# Upgrade pip and setuptools
+RUN pip install --no-cache-dir --upgrade pip "setuptools>=70" wheel
 
 # Hard-require numpy because app imports it at module import time (fail-fast otherwise)
 RUN pip install --no-cache-dir "numpy>=1.26.0"
@@ -71,16 +63,6 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PATH="/usr/local/bin:$PATH"
 
 EXPOSE 8100
-
-# DIAGNOSTIC: Verify uvicorn installation (use || true to not fail build on grep)
-RUN echo "=== Installation Verification ===" && \
-    echo "Python: $(python3 --version)" && \
-    echo "Pip: $(pip --version)" && \
-    echo "Uvicorn check:" && \
-    (which uvicorn && uvicorn --version || python3 -m uvicorn --version) && \
-    echo "Key packages:" && \
-    (pip list | grep -E "uvicorn|fastapi|torch" || true) && \
-    echo "==================================="
 
 # Use python -m uvicorn to avoid any PATH issues
 CMD ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8100", "--workers", "1"]
