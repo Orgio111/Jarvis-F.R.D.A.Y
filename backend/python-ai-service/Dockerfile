@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy project metadata first for layer caching
 COPY pyproject.toml ./
 
+# Hard-require numpy because app imports it at module import time.
+RUN pip install --no-cache-dir "numpy>=1.26.0"
+
 # Install base dependencies (no GPU extras by default)
 # Use non-editable install to avoid PEP660 build_editable hook issues.
 RUN pip install --no-cache-dir "."
@@ -49,6 +52,9 @@ RUN echo "=== DIAGNOSTIC: Checking initial setuptools version ===" && \
     pip install --dry-run --no-cache-dir "setuptools>=70" || echo "setuptools>=70 not available via pip" && \
     echo "=== DIAGNOSTIC: Available setuptools versions ===" && \
     pip index versions setuptools || echo "Could not list setuptools versions"
+
+# Hard-require numpy because app imports it at module import time (fail-fast otherwise)
+RUN pip install --no-cache-dir "numpy>=1.26.0"
 
 # Install base dependencies first, then GPU extras separately to ensure all deps are included
 RUN pip install --no-cache-dir "." && \

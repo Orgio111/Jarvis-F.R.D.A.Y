@@ -12,6 +12,9 @@ router = APIRouter()
 
 _start_time = time.time()
 
+# Keep in sync with app/main.py FastAPI version (or override via env).
+SERVICE_VERSION = "0.2.0"
+
 
 @router.get("/health")
 async def health(request: Request) -> dict:
@@ -22,6 +25,7 @@ async def health(request: Request) -> dict:
             "status": "pass",
             "uptime_seconds": round(uptime_s, 1),
             "service": "python-ai-service",
+            "version": SERVICE_VERSION,
         },
         correlation_id,
     )

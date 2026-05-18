@@ -34,7 +34,7 @@ services:
     build:
       context: ../backend/python-ai-service
       dockerfile: Dockerfile
-      target: base
+      target: runtime
     restart: unless-stopped
     expose:
       - "8100"

@@ -27,7 +27,6 @@ import time
 from pathlib import Path
 from typing import Any
 
-import numpy as np
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +34,16 @@ from app.core.logging import get_logger
 from app.db.models import MemoryEntry
 
 logger = get_logger(__name__)
+
+# Optional dependency: NumPy is required for vector math / FAISS integration.
+# If it's missing, the service should still start and health must remain 200.
+try:
+    import numpy as np  # type: ignore
+    _NUMPY_AVAILABLE = True
+except Exception as exc:  # noqa: BLE001
+    np = None  # type: ignore[assignment]
+    _NUMPY_AVAILABLE = False
+    logger.warning("numpy_not_available_degraded_mode", error=str(exc))
 
 _DATA_DIR = Path(os.getenv("DATA_DIR", "./data"))
 _FAISS_DIR = _DATA_DIR / "faiss"
@@ -53,6 +62,11 @@ async def boot(db: AsyncSession, embeddings_model: str = "sentence-transformers/
     """Called at service startup. Loads embedder + rebuilds FAISS if needed."""
     global _embedder, _faiss_index, _index_map
 
+    # Degraded mode: without NumPy we can't safely create/search vectors.
+    if not _NUMPY_AVAILABLE:
+        logger.warning("memory_boot_numpy_missing", status="degraded")
+        return
+
     try:
         from sentence_transformers import SentenceTransformer  # type: ignore
         _embedder = SentenceTransformer(embeddings_model)
@@ -61,7 +75,11 @@ async def boot(db: AsyncSession, embeddings_model: str = "sentence-transformers/
         logger.warning("sentence_transformers_not_installed", hint="pip install sentence-transformers")
         return
 
-    import faiss  # type: ignore
+    try:
+        import faiss  # type: ignore
+    except ImportError:
+        logger.warning("faiss_not_installed", hint="pip install faiss-cpu")
+        return
 
     if _FAISS_INDEX_PATH.exists():
         _faiss_index = faiss.read_index(str(_FAISS_INDEX_PATH))
@@ -123,10 +141,9 @@ async def search(
     memory_type: str | None = None,
 ) -> list[dict[str, Any]]:
     """Semantic nearest-neighbour search. Falls back to SQLite LIKE if no FAISS."""
-    if _embedder is None or _faiss_index is None or _faiss_index.ntotal == 0:
+    # Any missing optional deps -> degrade to SQL fallback.
+    if (not _NUMPY_AVAILABLE) or _embedder is None or _faiss_index is None or _faiss_index.ntotal == 0:
         return await _fallback_search(db, query, top_k, memory_type)
-
-    import faiss  # type: ignore
 
     vec = _embedder.encode([query], normalize_embeddings=True).astype(np.float32)
     k = min(top_k * 2, _faiss_index.ntotal)  # fetch extra to allow filtering
@@ -212,6 +229,8 @@ async def status(db: AsyncSession) -> dict[str, Any]:
         "faissVectors": _faiss_index.ntotal if _faiss_index else 0,
         "faissAvailable": faiss_available,
         "embeddingsAvailable": embeddings_available,
+        "numpyAvailable": _NUMPY_AVAILABLE,
+        "mode": "degraded" if not _NUMPY_AVAILABLE else "active",
         "indexPath": str(_FAISS_INDEX_PATH),
     }
 
@@ -219,6 +238,10 @@ async def status(db: AsyncSession) -> dict[str, Any]:
 # ─── Internals ────────────────────────────────────────────────────────────────
 
 async def _embed_and_add(db: AsyncSession, entry: MemoryEntry) -> None:
+    # If NumPy is missing, we can't compute vectors; silently degrade to SQLite-only.
+    if not _NUMPY_AVAILABLE or np is None:
+        return
+
     import faiss  # type: ignore
 
     vec = _embedder.encode([entry.content], normalize_embeddings=True).astype(np.float32)  # type: ignore[union-attr]
@@ -241,6 +264,10 @@ async def _embed_and_add(db: AsyncSession, entry: MemoryEntry) -> None:
 
 
 async def _rebuild_index(entries: list[MemoryEntry]) -> None:
+    # If NumPy is missing, skip FAISS rebuild.
+    if not _NUMPY_AVAILABLE or np is None:
+        return
+
     import faiss  # type: ignore
 
     global _faiss_index, _index_map

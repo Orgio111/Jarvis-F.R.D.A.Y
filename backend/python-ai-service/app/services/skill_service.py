@@ -258,8 +258,10 @@ def _parse_parameters_comment(code: str) -> list[dict]:
 
 # ─── Sandboxed execution ──────────────────────────────────────────────────────
 
+import builtins as _py_builtins
+
 _SAFE_BUILTINS = {
-    name: getattr(__builtins__ if isinstance(__builtins__, dict) else __import__("builtins"), name)
+    name: getattr(_py_builtins, name)
     for name in (
         "abs", "all", "any", "bin", "bool", "bytes", "callable", "chr", "dict",
         "dir", "divmod", "enumerate", "filter", "float", "format", "frozenset",
@@ -270,7 +272,7 @@ _SAFE_BUILTINS = {
         "vars", "zip", "True", "False", "None", "Exception", "ValueError",
         "TypeError", "KeyError", "IndexError", "RuntimeError",
     )
-    if hasattr(__import__("builtins"), name)
+    if hasattr(_py_builtins, name)
 }
 
 
