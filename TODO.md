@@ -1,4 +1,8 @@
 # TODO
 
-- [ ] Update Go gateway routing so `GET /api/bootstrap` is exempt from `mw.Session` (X-Session-ID required), while keeping `mw.Session` for all protected feature routes.
-- [ ] Build/test Go gateway to ensure compilation and route wiring correctness.
+All previously listed items have been resolved. See git log for details.
+
+## Remaining known gaps (low priority)
+
+- [ ] Chat handler: proxy errors do not yet distinguish `ErrCircuitOpen` from generic 503 — chat uses direct HTTP forwarding, not `aiProxy.Get/Post`. Consider refactoring to use shared transport so circuit breaker covers streaming too.
+- [ ] Consider adding `GATEWAY_API_KEY` rotation (dual-key support) for zero-downtime key rotation in production.

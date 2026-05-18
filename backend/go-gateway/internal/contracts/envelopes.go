@@ -81,6 +81,14 @@ func WriteServiceUnavailable(w http.ResponseWriter, correlationID, service strin
 		service+" is not available", map[string]any{"service": service})
 }
 
+// WriteCircuitOpen writes a 503 with code "circuit_open" — use when the
+// circuit breaker has tripped for a downstream service.
+func WriteCircuitOpen(w http.ResponseWriter, correlationID, service string) {
+	WriteError(w, correlationID, http.StatusServiceUnavailable, "circuit_open",
+		service+" circuit breaker is open — too many recent failures, try again later",
+		map[string]any{"service": service})
+}
+
 func WriteInternalError(w http.ResponseWriter, correlationID string) {
 	WriteError(w, correlationID, http.StatusInternalServerError, "internal_error", "An internal error occurred.", nil)
 }

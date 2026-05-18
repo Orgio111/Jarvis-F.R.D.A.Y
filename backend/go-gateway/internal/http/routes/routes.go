@@ -24,6 +24,7 @@ func Build(cfg *config.Config, aiProxy *proxy.AIProxy, redis *redisclient.Client
 	r.Use(mw.Recovery(logger))
 	r.Use(mw.CORS(cfg.CORSAllowedOrigins))
 	r.Use(mw.Correlation)
+	r.Use(mw.APIKey) // no-op when GATEWAY_API_KEY env var is unset
 	r.Use(mw.RateLimiter(cfg.RateLimitPerMinute))
 	r.Use(chimw.Compress(5))
 

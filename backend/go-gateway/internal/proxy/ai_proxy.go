@@ -3,36 +3,59 @@ package proxy
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
 
+	"github.com/sony/gobreaker"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
+
+// ErrCircuitOpen is returned when the circuit breaker trips.
+var ErrCircuitOpen = errors.New("ai service circuit open — too many recent failures")
 
 // AIProxy is the HTTP client used to communicate with the Python AI service.
 type AIProxy struct {
 	baseURL    string
 	httpClient *http.Client
+	cb         *gobreaker.CircuitBreaker
 }
 
 // New creates a new AIProxy pointing at the given base URL.
 func New(baseURL string, timeout time.Duration) *AIProxy {
-	// Wrap the pooled transport with otelhttp so outbound calls become child
-	// spans of the inbound request and propagate the traceparent header
-	// downstream to the Python AI service.
 	base := &http.Transport{
 		MaxIdleConns:        100,
 		MaxIdleConnsPerHost: 20,
 		IdleConnTimeout:     90 * time.Second,
 	}
+
+	cb := gobreaker.NewCircuitBreaker(gobreaker.Settings{
+		Name:        "ai-service",
+		MaxRequests: 5,                // half-open: max simultaneous probes
+		Interval:    60 * time.Second, // rolling window
+		Timeout:     30 * time.Second, // open → half-open wait
+		ReadyToTrip: func(counts gobreaker.Counts) bool {
+			// Trip when ≥5 consecutive failures or failure ratio > 60 %
+			if counts.ConsecutiveFailures >= 5 {
+				return true
+			}
+			if counts.Requests > 0 {
+				ratio := float64(counts.TotalFailures) / float64(counts.Requests)
+				return counts.Requests >= 10 && ratio >= 0.6
+			}
+			return false
+		},
+	})
+
 	return &AIProxy{
 		baseURL: baseURL,
 		httpClient: &http.Client{
 			Timeout:   timeout,
 			Transport: otelhttp.NewTransport(base),
 		},
+		cb: cb,
 	}
 }
 
@@ -40,6 +63,11 @@ func New(baseURL string, timeout time.Duration) *AIProxy {
 type ProxyResult struct {
 	StatusCode int
 	Body       json.RawMessage
+}
+
+// CircuitState returns the current breaker state as a string.
+func (p *AIProxy) CircuitState() string {
+	return p.cb.State().String()
 }
 
 // Get issues a GET request to the Python AI service and returns the raw JSON body.
@@ -69,33 +97,50 @@ func (p *AIProxy) do(ctx context.Context, method, path string, body any, correla
 		reqBody = newBytesReader(data)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
+	// Wrap the actual HTTP call inside the circuit breaker.
+	result, err := p.cb.Execute(func() (any, error) {
+		req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
+		if err != nil {
+			return nil, fmt.Errorf("create request: %w", err)
+		}
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Correlation-ID", correlationID)
+		if sessionID != "" {
+			req.Header.Set("X-Session-ID", sessionID)
+		}
+		req.Header.Set("X-Source", "go-gateway")
+
+		resp, err := p.httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("ai service request: %w", err)
+		}
+		defer resp.Body.Close()
+
+		raw, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("read response body: %w", err)
+		}
+
+		// Treat 5xx as circuit-breaking failures.
+		if resp.StatusCode >= 500 {
+			return nil, fmt.Errorf("ai service returned %d", resp.StatusCode)
+		}
+
+		return &ProxyResult{
+			StatusCode: resp.StatusCode,
+			Body:       json.RawMessage(raw),
+		}, nil
+	})
+
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		if errors.Is(err, gobreaker.ErrOpenState) || errors.Is(err, gobreaker.ErrTooManyRequests) {
+			return nil, ErrCircuitOpen
+		}
+		return nil, err
 	}
 
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-Correlation-ID", correlationID)
-	if sessionID != "" {
-		req.Header.Set("X-Session-ID", sessionID)
-	}
-	req.Header.Set("X-Source", "go-gateway")
-
-	resp, err := p.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("ai service request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	raw, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("read response body: %w", err)
-	}
-
-	return &ProxyResult{
-		StatusCode: resp.StatusCode,
-		Body:       json.RawMessage(raw),
-	}, nil
+	return result.(*ProxyResult), nil
 }
 
 // DecodeInto unmarshals the proxy result body into v.
