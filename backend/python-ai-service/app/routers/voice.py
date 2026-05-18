@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import asyncio
 import io
+import os
 import uuid
 from typing import Any
 
@@ -142,34 +144,31 @@ async def text_to_speech(request: Request) -> Any:
     speed: float = float(body.get("speed", 1.0))
 
     gpu_info = GPUDetector.get_info()
-    settings = get_settings()
     use_gpu = gpu_info.cuda_available and settings.tts_gpu_enabled != "false"
+    tts_device = "cuda" if use_gpu else "cpu"
+    model_name = voice_id if voice_id else "tts_models/en/ljspeech/tacotron2-DDC"
+    wr = _get_wr()
 
     # ── Try Coqui TTS (GPU-capable) ──────────────────────────────────────────
     try:
-        from TTS.api import TTS as CoquiTTS  # type: ignore[import]
+        from TTS.api import TTS as CoquiTTS  # type: ignore[import]  # noqa: F401
 
-        device = "cuda" if use_gpu else "cpu"
-        model_name = voice_id if voice_id else "tts_models/en/ljspeech/tacotron2-DDC"
-
-        wr = _get_wr()
         tmp_path = f"/tmp/tts_{uuid.uuid4().hex}.wav"
-
-        async def _synthesise_coqui() -> None:
-            import asyncio
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, _run_coqui, model_name, text, language, speed, device, tmp_path)
+        loop = asyncio.get_running_loop()
 
         if wr is not None:
             async with wr.acquire("tts"):
-                await _synthesise_coqui()
+                await loop.run_in_executor(
+                    None, _run_coqui, model_name, text, language, speed, tts_device, tmp_path
+                )
         else:
-            await _synthesise_coqui()
+            await loop.run_in_executor(
+                None, _run_coqui, model_name, text, language, speed, tts_device, tmp_path
+            )
 
-        import os as _os
         with open(tmp_path, "rb") as f:
             audio_bytes = f.read()
-        _os.unlink(tmp_path)
+        os.unlink(tmp_path)
         return Response(content=audio_bytes, media_type="audio/wav")
 
     except ImportError:
@@ -180,7 +179,6 @@ async def text_to_speech(request: Request) -> Any:
     # ── Fallback: pyttsx3 (CPU-only) ─────────────────────────────────────────
     try:
         import pyttsx3  # type: ignore[import]
-        import asyncio, os as _os
 
         tmp_path = f"/tmp/tts_{uuid.uuid4().hex}.wav"
 
@@ -192,12 +190,12 @@ async def text_to_speech(request: Request) -> Any:
             engine.save_to_file(text, tmp_path)
             engine.runAndWait()
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         await loop.run_in_executor(None, _run_pyttsx3)
 
         with open(tmp_path, "rb") as f:
             audio_bytes = f.read()
-        _os.unlink(tmp_path)
+        os.unlink(tmp_path)
         return Response(content=audio_bytes, media_type="audio/wav")
 
     except ImportError:
