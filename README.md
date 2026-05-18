@@ -143,17 +143,60 @@ make clean         # Remove build artifacts
 
 ## GPU Acceleration
 
-GPU is **optional**. The system runs fully in CPU mode.
+GPU is **optional**. The system runs fully in CPU mode when no GPU is present.
+
+### Prerequisites (NVIDIA)
+
+1. Install **NVIDIA Container Toolkit** on the host:
+   ```bash
+   # Ubuntu / Debian
+   curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey | sudo gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+   curl -s -L https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list | \
+     sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' | \
+     sudo tee /etc/apt/sources.list.d/nvidia-container-toolkit.list
+   sudo apt-get update && sudo apt-get install -y nvidia-container-toolkit
+   sudo nvidia-ctk runtime configure --runtime=docker
+   sudo systemctl restart docker
+   ```
+
+2. Verify the GPU is visible to Docker:
+   ```bash
+   docker run --rm --gpus all nvidia/cuda:12.4.1-base-ubuntu22.04 nvidia-smi
+   ```
+   You should see your GPU listed (e.g. **NVIDIA GeForce RTX 4050 Laptop GPU**).
+
+### Running with GPU
+
+```bash
+# GPU-accelerated stack (RTX 4050 / any CUDA 12.x GPU)
+docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+
+# CPU-only (no changes needed)
+docker compose up --build
+```
+
+### GPU support matrix
+
+| GPU | Architecture | CUDA | Supported |
+|-----|-------------|------|-----------|
+| RTX 4050 Laptop | Ada Lovelace (sm_89) | 12.x | ✅ |
+| RTX 3000 series | Ampere (sm_86) | 11.x+ | ✅ |
+| RTX 2000 series | Turing (sm_75) | 10.x+ | ✅ |
+| GTX 1000 series | Pascal (sm_61) | 10.x+ | ✅ |
+
+### GPU-accelerated workloads
+
+| Workload | GPU concurrency | Notes |
+|----------|----------------|-------|
+| STT — faster-whisper | 2 | `float16` on CUDA, `int8` on CPU |
+| Embeddings — sentence-transformers | 4 | |
+| Vision | 2 | |
+| Local LLM | 1 | sequential per instance |
+| TTS | 2 | CPU pyttsx3 fallback if no GPU engine |
+| FAISS | 8 | CPU index (fast enough, avoids faiss-gpu complexity) |
 
 Set `GPU_REQUIRED=false` (default) to allow CPU fallback.
-Set `GPU_REQUIRED=true` only if GPU is mandatory.
-
-GPU-accelerated workloads (when available):
-- Local LLM inference
-- STT (Whisper/faster-whisper)
-- Sentence-Transformers embeddings
-- FAISS vector search
-- Vision model inference
+Set `GPU_REQUIRED=true` only if you want the service to refuse to start without a GPU.
 
 ## License
 

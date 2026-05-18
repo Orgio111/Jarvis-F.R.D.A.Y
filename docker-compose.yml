@@ -67,6 +67,8 @@ services:
     build:
       context: ./backend/python-ai-service
       dockerfile: Dockerfile
+      # Use the GPU stage when NVIDIA runtime is available; falls back gracefully.
+      target: "${PYTHON_AI_BUILD_TARGET:-gpu}"
     restart: unless-stopped
     environment:
       APP_ENV: development
@@ -113,14 +115,16 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-    # ── GPU passthrough (NVIDIA) — uncomment to enable ───────────────────────
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    # ── GPU passthrough (NVIDIA Container Toolkit required on host) ──────────
+    # Install: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html
+    # RTX 4050 Laptop: sm_89 (Ada Lovelace) — fully supported with CUDA 12.x
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     logging: *default-logging
 
   # ── Go API gateway ───────────────────────────────────────────────────────────

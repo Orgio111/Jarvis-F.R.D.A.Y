@@ -29,8 +29,10 @@ EXPOSE 8100
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8100", "--workers", "1"]
 
-# ─── GPU variant (nvidia/cuda base) ────────────────────────────────────────────
-FROM nvidia/cuda:12.4.1-runtime-ubuntu22.04 AS gpu
+# ─── GPU variant (NVIDIA CUDA 12.4 base — covers RTX 4050 Ada Lovelace) ───────
+# nvidia/cuda:12.4.1-cudnn-runtime ships cuDNN which is required by PyTorch,
+# faster-whisper, and onnxruntime-gpu.
+FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04 AS gpu
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -42,15 +44,29 @@ RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && ln -sf /usr/bin/python3 /usr/
 WORKDIR /app
 COPY pyproject.toml ./
 
-# Upgrade pip and setuptools
+# Upgrade pip / build tools
 RUN pip install --no-cache-dir --upgrade pip "setuptools>=70" wheel
 
-# Hard-require numpy because app imports it at module import time (fail-fast otherwise)
+# ── Step 1: install PyTorch with CUDA 12.1 wheels from the official index ─────
+# CUDA 12.1 wheels run on any CUDA 12.x driver (12.4 included).
+# RTX 4050 Laptop (Ada Lovelace, sm_89) is fully supported from PyTorch 2.1+.
+RUN pip install --no-cache-dir \
+    torch>=2.3.0 \
+    --index-url https://download.pytorch.org/whl/cu121
+
+# ── Step 2: numpy (must precede pip install . ) ────────────────────────────────
 RUN pip install --no-cache-dir "numpy>=1.26.0"
 
-# Install base dependencies first, then GPU extras separately to ensure all deps are included
-RUN pip install --no-cache-dir "." && \
-    pip install --no-cache-dir ".[gpu-cuda]"
+# ── Step 3: base service deps (no torch pulled here — already installed) ───────
+RUN pip install --no-cache-dir "."
+
+# ── Step 4: GPU extras (sentence-transformers, faiss-cpu, faster-whisper, onnx) 
+# torch is already present so pip won't re-download it.
+RUN pip install --no-cache-dir \
+    "sentence-transformers>=3.0.0" \
+    "faiss-cpu>=1.8.0" \
+    "faster-whisper>=1.0.3" \
+    "onnxruntime-gpu>=1.18.0"
 
 COPY app/ ./app/
 
@@ -58,11 +74,16 @@ ENV APP_HOST=0.0.0.0
 ENV APP_PORT=8100
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
+# GPU detection env hints
+ENV GPU_ENABLED=true
+ENV GPU_ALLOW_CPU_FALLBACK=true
+ENV STT_GPU_ENABLED=true
+ENV EMBEDDINGS_GPU_ENABLED=true
+ENV VISION_GPU_ENABLED=true
+ENV TTS_GPU_ENABLED=auto
 
-# Add pip binary directory to PATH
 ENV PATH="/usr/local/bin:$PATH"
 
 EXPOSE 8100
 
-# Use python -m uvicorn to avoid any PATH issues
 CMD ["python3", "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8100", "--workers", "1"]

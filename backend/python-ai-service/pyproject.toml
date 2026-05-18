@@ -37,15 +37,20 @@ providers = [
     "openai>=1.40.0",
 ]
 gpu = [
+    # CPU-only torch — for systems without CUDA
     "torch>=2.3.0",
     "sentence-transformers>=3.0.0",
     "faiss-cpu>=1.8.0",
 ]
 gpu-cuda = [
+    # PyTorch with CUDA 12.1 support (covers RTX 4050 / Ada Lovelace + all CUDA 12.x GPUs).
+    # Installed via the official PyTorch index — do NOT install plain "torch" alongside this.
     "torch>=2.3.0",
     "sentence-transformers>=3.0.0",
     "faiss-cpu>=1.8.0",
     "faster-whisper>=1.0.3",
+    # onnxruntime-gpu speeds up faster-whisper on CUDA
+    "onnxruntime-gpu>=1.18.0",
 ]
 dev = [
     "pytest>=8.2.0",

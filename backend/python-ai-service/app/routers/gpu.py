@@ -21,6 +21,11 @@ def set_workload_router(wr: WorkloadRouter) -> None:
     _workload_router = wr
 
 
+def get_workload_router() -> WorkloadRouter | None:
+    """Return the singleton WorkloadRouter — usable from any router module."""
+    return _workload_router
+
+
 def _build_gpu_status() -> dict:
     settings = get_settings()
     info = GPUDetector.get_info()

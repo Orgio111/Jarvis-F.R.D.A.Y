@@ -17,6 +17,12 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+def _get_wr():
+    """Lazy import to avoid circular deps at module load time."""
+    from app.routers.gpu import get_workload_router
+    return get_workload_router()
+
+
 @router.post("/voice/stt")
 async def speech_to_text(
     request: Request,
@@ -34,21 +40,32 @@ async def speech_to_text(
     except ImportError:
         return error(
             "stt_unavailable",
-            "Faster Whisper not installed. Add the 'gpu' extras: pip install jarvis-ai-service[gpu]",
+            "Faster Whisper not installed — rebuild with the GPU image target.",
             correlation_id=correlation_id,
         )
-
-    gpu_info = GPUDetector.get_info()
-    device = DeviceManager.resolve("auto", gpu_info.cuda_available and settings.stt_gpu_enabled, True)
-    compute_type = DeviceManager.resolve_compute_type("auto", device)
 
     try:
         audio_bytes = await audio.read()
         audio_io = io.BytesIO(audio_bytes)
 
-        model = WhisperModel(settings.stt_model_size, device=device, compute_type=compute_type)
-        segments, info = model.transcribe(audio_io, beam_size=5)
-        transcript = "".join(s.text for s in segments).strip()
+        wr = _get_wr()
+        if wr is not None:
+            # Use WorkloadRouter so the semaphore prevents concurrent OOM on GPU
+            async with wr.acquire("stt") as device:
+                compute_type = DeviceManager.resolve_compute_type("auto", device)
+                model = WhisperModel(settings.stt_model_size, device=device, compute_type=compute_type)
+                segments, info = model.transcribe(audio_io, beam_size=5)
+                transcript = "".join(s.text for s in segments).strip()
+        else:
+            # Fallback before lifespan completes
+            gpu_info = GPUDetector.get_info()
+            device = DeviceManager.resolve(
+                "auto", gpu_info.cuda_available and settings.stt_gpu_enabled, True
+            )
+            compute_type = DeviceManager.resolve_compute_type("auto", device)
+            model = WhisperModel(settings.stt_model_size, device=device, compute_type=compute_type)
+            segments, info = model.transcribe(audio_io, beam_size=5)
+            transcript = "".join(s.text for s in segments).strip()
 
         return success(
             {
@@ -120,6 +137,12 @@ async def voice_status(request: Request) -> dict:
     settings = get_settings()
     gpu_info = GPUDetector.get_info()
 
+    wr = _get_wr()
+    stt_device_mode = "unknown"
+    if wr is not None:
+        workloads = wr.get_workloads()
+        stt_device_mode = workloads.get("stt", "cpu")
+
     stt_available = False
     try:
         import faster_whisper  # type: ignore[import] # noqa: F401
@@ -140,7 +163,7 @@ async def voice_status(request: Request) -> dict:
                 "enabled": settings.stt_enabled,
                 "available": stt_available,
                 "engine": settings.stt_engine,
-                "device": "gpu" if (settings.stt_gpu_enabled and gpu_info.cuda_available) else "cpu",
+                "device": stt_device_mode,
                 "modelSize": settings.stt_model_size,
             },
             "tts": {
