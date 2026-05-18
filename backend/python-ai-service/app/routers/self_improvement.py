@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
+import os
 import time
 from uuid import uuid4
 
+import redis.asyncio as aioredis
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
@@ -13,22 +16,73 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 router = APIRouter()
 
-# In-memory suggestion log (volatile — for demo/development)
-_suggestions: list[dict] = []
-_applied: list[dict] = []
+# ── Redis keys ────────────────────────────────────────────────────────────────
+_KEY_PENDING = "jarvis:self_improvement:pending"
+_KEY_APPLIED = "jarvis:self_improvement:applied"
 
+
+def _redis_url() -> str:
+    return os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+
+async def _get_redis() -> aioredis.Redis:
+    return await aioredis.from_url(_redis_url(), decode_responses=True)
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+async def _load_list(key: str) -> list[dict]:
+    try:
+        r = await _get_redis()
+        items = await r.lrange(key, 0, -1)
+        await r.aclose()
+        return [json.loads(i) for i in items]
+    except Exception as exc:
+        logger.warning("self_improvement_redis_read_failed", key=key, error=str(exc))
+        return []
+
+
+async def _push(key: str, item: dict) -> None:
+    try:
+        r = await _get_redis()
+        await r.rpush(key, json.dumps(item))
+        await r.aclose()
+    except Exception as exc:
+        logger.warning("self_improvement_redis_write_failed", key=key, error=str(exc))
+
+
+async def _remove_by_id(key: str, suggestion_id: str) -> dict | None:
+    """Remove and return the first item matching suggestion_id."""
+    try:
+        r = await _get_redis()
+        items = await r.lrange(key, 0, -1)
+        for raw in items:
+            item = json.loads(raw)
+            if item.get("id") == suggestion_id:
+                await r.lrem(key, 1, raw)
+                await r.aclose()
+                return item
+        await r.aclose()
+    except Exception as exc:
+        logger.warning("self_improvement_redis_remove_failed", error=str(exc))
+    return None
+
+
+# ── Routes ────────────────────────────────────────────────────────────────────
 
 @router.get("/self-improvement/status")
 async def status(request: Request) -> dict:
     correlation_id = request.headers.get("x-correlation-id")
     settings = get_settings()
+    pending = await _load_list(_KEY_PENDING)
+    applied = await _load_list(_KEY_APPLIED)
     return success(
         {
             "enabled": settings.self_improvement_enabled,
             "requireApproval": settings.self_improvement_require_approval,
             "versioningEnabled": settings.self_versioning_enabled,
-            "pendingSuggestions": len(_suggestions),
-            "appliedCount": len(_applied),
+            "pendingSuggestions": len(pending),
+            "appliedCount": len(applied),
         },
         correlation_id,
     )
@@ -37,15 +91,15 @@ async def status(request: Request) -> dict:
 @router.get("/self-improvement/suggestions")
 async def list_suggestions(request: Request) -> dict:
     correlation_id = request.headers.get("x-correlation-id")
-    return success({"suggestions": _suggestions, "total": len(_suggestions)}, correlation_id)
+    suggestions = await _load_list(_KEY_PENDING)
+    return success({"suggestions": suggestions, "total": len(suggestions)}, correlation_id)
 
 
 @router.post("/self-improvement/suggest")
 async def create_suggestion(request: Request) -> dict:
     """
-    Ask the active provider to generate a self-improvement suggestion
-    based on recent conversation context or a provided prompt.
-    Suggestions are queued and require human approval before being applied.
+    Ask the active provider to generate a self-improvement suggestion.
+    Suggestions are persisted in Redis and require human approval.
     """
     correlation_id = request.headers.get("x-correlation-id")
     settings = get_settings()
@@ -81,7 +135,7 @@ async def create_suggestion(request: Request) -> dict:
         "requiresApproval": settings.self_improvement_require_approval,
     }
 
-    # Attempt to get a real suggestion from the provider
+    # Get a real suggestion from the active provider
     try:
         from app.providers.router import ProviderRouter
         pr = ProviderRouter.get()
@@ -109,14 +163,15 @@ async def create_suggestion(request: Request) -> dict:
     except Exception as exc:
         logger.warning("self_improvement_ai_failed", error=str(exc))
 
-    _suggestions.append(suggestion)
+    await _push(_KEY_PENDING, suggestion)
+    logger.info("self_improvement_suggestion_created", suggestion_id=suggestion_id)
     return success(suggestion, correlation_id)
 
 
 @router.post("/self-improvement/suggestions/{suggestion_id}/approve")
 async def approve_suggestion(suggestion_id: str, request: Request) -> dict:
     correlation_id = request.headers.get("x-correlation-id")
-    suggestion = next((s for s in _suggestions if s["id"] == suggestion_id), None)
+    suggestion = await _remove_by_id(_KEY_PENDING, suggestion_id)
     if not suggestion:
         return JSONResponse(
             status_code=404,
@@ -124,8 +179,8 @@ async def approve_suggestion(suggestion_id: str, request: Request) -> dict:
         )
 
     suggestion["status"] = "approved"
-    _applied.append(suggestion)
-    _suggestions.remove(suggestion)
+    suggestion["approvedAt"] = time.time()
+    await _push(_KEY_APPLIED, suggestion)
     logger.info("self_improvement_approved", suggestion_id=suggestion_id)
     return success({"approved": True, "suggestionId": suggestion_id}, correlation_id)
 
@@ -133,12 +188,11 @@ async def approve_suggestion(suggestion_id: str, request: Request) -> dict:
 @router.post("/self-improvement/suggestions/{suggestion_id}/reject")
 async def reject_suggestion(suggestion_id: str, request: Request) -> dict:
     correlation_id = request.headers.get("x-correlation-id")
-    suggestion = next((s for s in _suggestions if s["id"] == suggestion_id), None)
+    suggestion = await _remove_by_id(_KEY_PENDING, suggestion_id)
     if not suggestion:
         return JSONResponse(
             status_code=404,
             content=error("not_found", f"Suggestion '{suggestion_id}' not found", correlation_id=correlation_id),
         )
-    suggestion["status"] = "rejected"
-    _suggestions.remove(suggestion)
+    logger.info("self_improvement_rejected", suggestion_id=suggestion_id)
     return success({"rejected": True, "suggestionId": suggestion_id}, correlation_id)

@@ -12,6 +12,7 @@ use axum::{
     Router,
     routing::{get, post},
 };
+use axum::http::HeaderValue;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
@@ -66,17 +67,27 @@ async fn main() {
     }
 
     // Router
+    // Internal service — only allow calls from the Go gateway and Python AI service.
+    // Origins are configurable via CORS_ALLOWED_ORIGINS env var (comma-separated).
+    let allowed_origins: Vec<HeaderValue> = std::env::var("CORS_ALLOWED_ORIGINS")
+        .unwrap_or_else(|_| {
+            "http://localhost:8000,http://go-gateway:8000,http://localhost:8100,http://python-ai-service:8100".to_string()
+        })
+        .split(',')
+        .filter_map(|o| o.trim().parse::<HeaderValue>().ok())
+        .collect();
+
+    let cors = CorsLayer::new()
+        .allow_origin(allowed_origins)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     let app = Router::new()
         .route("/health", get(health::health_handler))
         .route("/metrics", get(metrics::metrics_handler))
         .route("/events/publish", post(handlers::publish_event))
         .route("/events/stream/:topic", get(handlers::stream_events))
-        .layer(
-            CorsLayer::new()
-                .allow_origin(Any)
-                .allow_methods(Any)
-                .allow_headers(Any),
-        )
+        .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(broker);
 

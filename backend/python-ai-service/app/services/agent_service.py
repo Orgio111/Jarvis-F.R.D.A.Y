@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 import time
 from collections.abc import AsyncGenerator
 from typing import Any
@@ -208,15 +209,40 @@ async def _act(
     if step_type == "code":
         code = step.get("code", "")
         if code:
-            try:
-                result: dict[str, Any] = {}
-                exec(compile(code, "<agent_code>", "exec"), {"result": result})  # noqa: S102
-                return {"success": True, "output": result}
-            except Exception as exc:
-                return {"success": False, "error": str(exc)}
+            return await _run_code_sandboxed(code)
 
     # Default: LLM reasoning step
     return await _llm_step(instruction)
+
+
+async def _run_code_sandboxed(code: str, timeout_s: int = 10) -> dict[str, Any]:
+    """
+    Execute a short code snippet in a child subprocess instead of the live
+    interpreter.  This prevents the agent from mutating process state or
+    accessing secrets available in the parent environment.
+    """
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, "-c", code,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        try:
+            stdout_bytes, stderr_bytes = await asyncio.wait_for(
+                proc.communicate(), timeout=timeout_s
+            )
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.communicate()
+            return {"success": False, "error": f"Code execution timed out after {timeout_s}s"}
+
+        stdout = stdout_bytes.decode(errors="replace").strip()
+        stderr = stderr_bytes.decode(errors="replace").strip()
+        if proc.returncode != 0:
+            return {"success": False, "error": stderr or f"exit code {proc.returncode}"}
+        return {"success": True, "output": stdout}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
 
 
 async def _llm_step(instruction: str) -> dict[str, Any]:
