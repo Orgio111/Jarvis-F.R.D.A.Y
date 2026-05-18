@@ -125,3 +125,4 @@ deploy/prometheus/data/
 *.csr
 *.p12
 *.pfx
+/.claude/worktrees/thirsty-elgamal-d0e55d
