@@ -230,7 +230,10 @@ async def _stream_events(
                 chunk_data = json.loads(raw_chunk)
             except Exception:
                 continue
-            delta = chunk_data.get("choices", [{}])[0].get("delta", {})
+            choices = chunk_data.get("choices", [{}])
+            if not choices:
+                continue
+            delta = choices[0].get("delta", {})
             token = delta.get("content", "")
             if token:
                 full_content.append(token)

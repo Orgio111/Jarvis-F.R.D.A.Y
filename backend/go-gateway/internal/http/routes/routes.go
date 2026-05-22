@@ -4,7 +4,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	chimw "github.com/go-chi/chi/v5/middleware"
 	"go.uber.org/zap"
 
 	"github.com/orgio111/jarvis/go-gateway/internal/config"
@@ -26,7 +25,6 @@ func Build(cfg *config.Config, aiProxy *proxy.AIProxy, redis *redisclient.Client
 	r.Use(mw.Correlation)
 	r.Use(mw.APIKey) // no-op when GATEWAY_API_KEY env var is unset
 	r.Use(mw.RateLimiter(cfg.RateLimitPerMinute))
-	r.Use(chimw.Compress(5))
 
 	// ─── Prometheus metrics (no auth) ─────────────────────────────────────────
 	r.Handle("/metrics", observability.MetricsHandler())
