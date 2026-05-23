@@ -20,6 +20,7 @@ from app.routers import (
 )
 from app.routers import skills, profile, agent, scheduler as scheduler_router
 from app.routers.brain_router import router as brain_router
+from app.routers.evolution_router import router as evolution_router
 from app.routers.gpu import set_workload_router
 
 logger = get_logger(__name__)
@@ -75,6 +76,18 @@ async def lifespan(app: FastAPI):
                      sectors=len(__import__('app.brain.sector_brains', fromlist=['SECTOR_BRAIN_REGISTRY']).SECTOR_BRAIN_REGISTRY))
     except Exception as exc:
         logger.warning("brain_init_warning", error=str(exc))
+
+    # ── Evolution & self-improvement services ──────────────────────────────────
+    try:
+        from app.services.evolution_service import EvolutionService
+        from app.services.self_improvement_loop import SelfImprovementLoop
+        from app.services.autonomous_pipeline import AutonomousPipeline
+        EvolutionService.initialize()
+        SelfImprovementLoop.initialize()
+        AutonomousPipeline.initialize()
+        logger.info("evolution_services_initialized")
+    except Exception as exc:
+        logger.warning("evolution_init_warning", error=str(exc))
 
     # ── Memory service warm-up (loads embedder + FAISS index) ─────────────────
     if settings.faiss_enabled:
@@ -190,3 +203,6 @@ app.include_router(scheduler_router.router)
 
 # Brain architecture
 app.include_router(brain_router)
+
+# Evolution & self-improvement
+app.include_router(evolution_router)

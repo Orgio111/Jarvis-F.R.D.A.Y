@@ -157,8 +157,11 @@ class MacroBrain:
                 logger.warning("macro_brain_plan_execution_failed", error=str(exc))
                 # Fall through to direct LLM
                 result["error"] = f"Plan execution failed: {exc}"
-                direct_result = await self._direct_llm(task, context, max_tokens)
-                result.update(direct_result)
+                direct = await self._direct_llm(task, context, max_tokens)
+                result["output"] = direct.get("output", "")
+                result["success"] = direct.get("success", False)
+                result["confidence"] = direct.get("confidence", 0.0)
+                result["error"] = direct.get("error")
 
         # 4. For simpler tasks, use direct LLM or appropriate sector brain
         else:
@@ -186,11 +189,17 @@ class MacroBrain:
                         agent_type="sector_brain",
                     )
                 else:
-                    direct_result = await self._direct_llm(task, context, max_tokens)
-                    result.update(direct_result)
+                    direct = await self._direct_llm(task, context, max_tokens)
+                    result["output"] = direct.get("output", "")
+                    result["success"] = direct.get("success", False)
+                    result["confidence"] = direct.get("confidence", 0.0)
+                    result["error"] = direct.get("error")
             else:
-                direct_result = await self._direct_llm(task, context, max_tokens)
-                result.update(direct_result)
+                direct = await self._direct_llm(task, context, max_tokens)
+                result["output"] = direct.get("output", "")
+                result["success"] = direct.get("success", False)
+                result["confidence"] = direct.get("confidence", 0.0)
+                result["error"] = direct.get("error")
 
         elapsed = round((time.perf_counter() - start) * 1000, 1)
         result["elapsedMs"] = elapsed

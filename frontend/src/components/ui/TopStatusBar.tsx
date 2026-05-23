@@ -32,7 +32,7 @@ export function TopStatusBar() {
         {/* J.A.R.V.I.S logo */}
         <div className="flex items-center gap-3">
           <m.span
-            className="text-jarvis-cyan text-xl font-bold tracking-[0.15em] neon-cyan font-sans"
+            className="text-jarvis-cyan text-xl font-bold tracking-[0.15em] neon-cyan font-sans jarvis-flicker"
             animate={{ textShadow: [
               '0 0 8px rgba(0,229,255,0.4)',
               '0 0 20px rgba(0,229,255,0.9)',

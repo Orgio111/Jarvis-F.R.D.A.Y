@@ -4,6 +4,7 @@ import { m } from 'framer-motion';
 import { TopStatusBar } from './TopStatusBar';
 import { Sidebar } from './Sidebar';
 import { RightSidebar } from './RightSidebar';
+import { ParticleField } from './ParticleField';
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -31,11 +32,20 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex flex-col w-full h-full overflow-hidden bg-[#02040A]">
+      {/* Particle field background */}
+      <ParticleField count={35} speed={0.2} />
+
+      {/* Animated data stream overlay */}
+      <div className="jarvis-data-stream fixed inset-0 pointer-events-none z-[1]" />
+
+      {/* Animated scanline sweep */}
+      <div className="jarvis-scanline-sweep jarvis-scanline-sweep-slow fixed inset-0 pointer-events-none z-[2]" />
+
       {/* Top bar */}
       <TopStatusBar />
 
       {/* Body */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 overflow-hidden relative z-10">
         {/* Left navigation */}
         <Sidebar />
 
