@@ -7,7 +7,6 @@ import { MessageBubble } from './MessageBubble';
 import { ChatInput } from './ChatInput';
 import { ModelSelector } from './ModelSelector';
 import { GlassPanel } from '@/components/ui/GlassPanel';
-
 export function ChatPanel() {
   const messages = useChatStore((s) => s.messages);
   const isStreaming = useChatStore((s) => s.isStreaming);
@@ -56,7 +55,7 @@ export function ChatPanel() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-5 py-4 space-y-1 scrollbar-thin">
         {messages.length === 0 ? (
-          <EmptyState />
+          <EmptyState onSend={sendMessage} />
         ) : (
           <m.div
             initial={{ opacity: 0 }}
@@ -84,7 +83,7 @@ export function ChatPanel() {
   );
 }
 
-function EmptyState() {
+function EmptyState({ onSend }: { onSend: (msg: string) => void }) {
   return (
     <div className="flex flex-col items-center justify-center h-full gap-8 py-12">
       <m.div
@@ -114,6 +113,7 @@ function EmptyState() {
         </GlassPanel>
       </m.div>
 
+      {/* Clickable suggestion pills */}
       <m.div
         className="grid grid-cols-2 gap-2 w-full max-w-sm"
         initial={{ opacity: 0, y: 8 }}
@@ -121,15 +121,18 @@ function EmptyState() {
         transition={{ delay: 0.2, duration: 0.3 }}
       >
         {SUGGESTIONS.map((s, i) => (
-          <m.div
+          <m.button
             key={s}
-            className="jarvis-panel px-3 py-2.5 text-xs font-mono text-jarvis-text-dim text-center rounded-xl cursor-default hover:text-jarvis-cyan hover:border-jarvis-cyan/30 transition-all duration-200"
+            onClick={() => onSend(s)}
+            className="jarvis-panel px-3 py-2.5 text-xs font-mono text-jarvis-text-dim text-center rounded-xl cursor-pointer hover:text-jarvis-cyan hover:border-jarvis-cyan/30 transition-all duration-200"
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 + i * 0.1, duration: 0.3 }}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
           >
             {s}
-          </m.div>
+          </m.button>
         ))}
       </m.div>
     </div>

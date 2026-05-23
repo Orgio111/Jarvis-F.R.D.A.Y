@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { m } from 'framer-motion';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { GlassPanel } from '@/components/ui/GlassPanel';
@@ -76,16 +77,25 @@ export function ToolsPanel() {
         {/* Tool list */}
         <div className="w-64 shrink-0 space-y-2">
           {tools.map((tool) => (
-            <button
+            <m.button
               key={tool.id}
               onClick={() => selectTool(tool)}
               className={[
-                'w-full text-left jarvis-panel p-3 rounded transition-colors',
+                'w-full text-left jarvis-panel p-3 rounded',
                 selected?.id === tool.id
                   ? 'border-jarvis-cyan/40 bg-jarvis-cyan/5'
-                  : 'hover:border-jarvis-border/80',
+                  : '',
                 !tool.enabled ? 'opacity-40' : '',
               ].join(' ')}
+              whileHover={tool.enabled ? {
+                scale: 1.01,
+                x: 2,
+                transition: { type: 'spring', stiffness: 300, damping: 25 },
+              } : undefined}
+              whileTap={tool.enabled ? {
+                scale: 0.99,
+                transition: { type: 'spring', stiffness: 400, damping: 20 },
+              } : undefined}
             >
               <div className="flex items-center justify-between mb-1">
                 <span className="text-jarvis-text-bright text-xs font-mono font-semibold">
@@ -101,7 +111,7 @@ export function ToolsPanel() {
               {!tool.enabled && (
                 <p className="text-jarvis-red text-xs font-mono mt-1">disabled</p>
               )}
-            </button>
+            </m.button>
           ))}
         </div>
 
@@ -144,13 +154,20 @@ export function ToolsPanel() {
                 ))}
               </div>
 
-              <button
+              <m.button
                 onClick={handleExecute}
                 disabled={!selected.enabled || execMut.isPending}
                 className="btn-cockpit-primary px-4 py-2 text-sm"
+                whileHover={selected.enabled && !execMut.isPending ? {
+                  scale: 1.02,
+                  transition: { type: 'spring', stiffness: 400, damping: 20 },
+                } : undefined}
+                whileTap={selected.enabled && !execMut.isPending ? {
+                  scale: 0.98,
+                } : undefined}
               >
                 {execMut.isPending ? 'Executing…' : 'Execute'}
-              </button>
+              </m.button>
 
               {execResult !== null && (
                 <div className="mt-4 bg-jarvis-bg border border-jarvis-border rounded p-3">

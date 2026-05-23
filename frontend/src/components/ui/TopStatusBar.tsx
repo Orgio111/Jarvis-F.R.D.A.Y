@@ -21,7 +21,7 @@ export function TopStatusBar() {
 
   return (
     <header
-      className="relative h-[68px] flex items-center justify-between px-5 border-b bg-jarvis-bg/95 backdrop-blur-md shrink-0"
+      className="relative h-[68px] flex items-center justify-between px-5 sm:px-5 pl-12 border-b bg-jarvis-bg/95 backdrop-blur-md shrink-0"
       style={{ borderColor: 'var(--jarvis-border)' }}
     >
       {/* Animated gradient bottom border */}

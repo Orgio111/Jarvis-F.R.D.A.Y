@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Search } from 'lucide-react';
 import { useModels } from './useModels';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
@@ -26,13 +27,21 @@ export function ModelsPage() {
       />
 
       <div className="mt-4 mb-4">
-        <input
-          type="text"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-          placeholder="Filter models…"
-          className="w-full max-w-sm bg-jarvis-bg border border-jarvis-border rounded px-3 py-2 text-sm font-mono text-jarvis-text-bright placeholder-jarvis-text-dim focus:outline-none focus:border-jarvis-cyan/60"
-        />
+        <div className="relative max-w-sm">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-jarvis-text-dim/40 pointer-events-none" />
+          <input
+            type="text"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Filter models…"
+            className="w-full bg-jarvis-bg border border-jarvis-border rounded-lg pl-9 pr-3 py-2 text-sm font-mono text-jarvis-text-bright placeholder-jarvis-text-dim/50 focus:outline-none focus:border-jarvis-cyan/60 focus:ring-1 focus:ring-jarvis-cyan/15 transition-all duration-200"
+          />
+          {filter && (
+            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-jarvis-text-dim/40">
+              {filtered.length}
+            </span>
+          )}
+        </div>
       </div>
 
       {isLoading ? (

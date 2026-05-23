@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
-import { m } from 'framer-motion';
+import { AnimatePresence, m } from 'framer-motion';
 import { TopStatusBar } from './TopStatusBar';
 import { Sidebar } from './Sidebar';
 import { RightSidebar } from './RightSidebar';
@@ -89,7 +89,17 @@ export function AppShell({ children }: AppShellProps) {
           <div className="relative z-10 w-full h-full overflow-auto scrollbar-thin">
             <div className="absolute top-0 left-0 right-0 h-20 bg-gradient-to-b from-jarvis-cyan/[0.02] to-transparent pointer-events-none" />
             <div className="relative">
-              {children}
+              <AnimatePresence mode="wait">
+                <m.div
+                  key={location.pathname}
+                  initial={{ opacity: 0, y: 6 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -4 }}
+                  transition={{ duration: 0.2, ease: 'easeOut' }}
+                >
+                  {children}
+                </m.div>
+              </AnimatePresence>
             </div>
           </div>
         </main>

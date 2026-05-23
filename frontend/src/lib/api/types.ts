@@ -204,6 +204,7 @@ export interface SystemInfo {
 export interface HealthCheck {
   status: 'pass' | 'warn' | 'fail';
   message?: string;
+  latencyMs?: number;
 }
 
 export interface HealthResponse {

@@ -1,3 +1,4 @@
+import { m } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 type BadgeColor = 'cyan' | 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'dim';
@@ -34,19 +35,31 @@ export function NeonBadge({ label, color = 'cyan', pulse = false, size = 'md', c
                    color === 'dim' ? 'bg-jarvis-text-dim' :
                    'bg-jarvis-cyan';
 
+  const borderGlow = color === 'green' ? 'shadow-[0_0_10px_rgba(0,255,136,0.15)] group-hover:shadow-[0_0_18px_rgba(0,255,136,0.25)]' :
+                     color === 'cyan' ? 'shadow-[0_0_10px_rgba(0,212,255,0.15)] group-hover:shadow-[0_0_18px_rgba(0,212,255,0.25)]' :
+                     color === 'red' ? 'shadow-[0_0_10px_rgba(255,68,102,0.15)] group-hover:shadow-[0_0_18px_rgba(255,68,102,0.25)]' :
+                     '';
+
   return (
-    <span
+    <m.span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border font-mono font-medium uppercase tracking-wider transition-all duration-200',
+        'group inline-flex items-center gap-1.5 rounded-full border font-mono font-medium uppercase tracking-wider',
+        'transition-all duration-300 ease-out',
+        borderGlow,
         COLOR_CLASSES[color],
         SIZE_CLASSES[size],
         className,
       )}
+      whileHover={{
+        scale: 1.04,
+        transition: { type: 'spring', stiffness: 400, damping: 15, mass: 0.5 },
+      }}
+      whileTap={{ scale: 0.95 }}
     >
       {pulse && (
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ${pulse ? 'animate-pulse' : ''}`} />
       )}
       {label}
-    </span>
+    </m.span>
   );
 }

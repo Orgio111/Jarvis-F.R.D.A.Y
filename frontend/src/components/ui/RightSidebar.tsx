@@ -59,13 +59,14 @@ export function RightSidebar() {
           {AGENTS.map((agent, i) => (
             <m.div
               key={agent.name}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 hover:bg-jarvis-bg-3/50 cursor-default group"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg cursor-default group"
               initial={{ opacity: 0, x: 8 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: i * 0.05, duration: 0.3 }}
+              whileHover={{ x: 4, transition: { type: 'spring', stiffness: 300, damping: 25 } }}
             >
-              <span className={`w-2 h-2 rounded-full ${STATUS_COLORS[agent.status]} ${STATUS_PULSE[agent.status]} shrink-0`} />
-              <div className="flex-1 min-w-0">
+              <span className={`relative w-2 h-2 rounded-full ${STATUS_COLORS[agent.status]} ${STATUS_PULSE[agent.status]} shrink-0 group-hover:scale-125 transition-transform duration-200`} />
+              <div className="flex-1 min-w-0 p-1.5 rounded-lg transition-all duration-200 group-hover:bg-jarvis-bg-3/50 group-hover:shadow-[inset_0_1px_0_rgba(0,212,255,0.03)]">
                 <p className="text-xs font-mono text-jarvis-text-bright group-hover:text-jarvis-cyan transition-colors duration-200">
                   {agent.name}
                 </p>
@@ -73,13 +74,16 @@ export function RightSidebar() {
                   {agent.subtitle}
                 </p>
               </div>
-              <span className={`text-[9px] font-mono uppercase tracking-wider ${
-                agent.status === 'active' ? 'text-jarvis-green' :
-                agent.status === 'busy' ? 'text-jarvis-yellow' :
-                'text-jarvis-text-dim/40'
-              }`}>
+              <m.span
+                className={`text-[9px] font-mono uppercase tracking-wider ${
+                  agent.status === 'active' ? 'text-jarvis-green' :
+                  agent.status === 'busy' ? 'text-jarvis-yellow' :
+                  'text-jarvis-text-dim/40'
+                }`}
+                whileHover={{ scale: 1.05 }}
+              >
                 {agent.status}
-              </span>
+              </m.span>
             </m.div>
           ))}
         </div>
@@ -115,12 +119,15 @@ export function RightSidebar() {
 
 function TaskBar({ label, pct, color }: { label: string; pct: number; color: string }) {
   return (
-    <div className="space-y-1">
+    <m.div
+      className="space-y-1 group/task"
+      whileHover={{ x: 2, transition: { type: 'spring', stiffness: 300, damping: 25 } }}
+    >
       <div className="flex justify-between text-[11px] font-mono">
-        <span className="text-jarvis-text-dim/80">{label}</span>
-        <span className="text-jarvis-text-dim/60">{pct}%</span>
+        <span className="text-jarvis-text-dim/80 group-hover/task:text-jarvis-cyan/80 transition-colors duration-200">{label}</span>
+        <span className="text-jarvis-text-dim/60 group-hover/task:text-jarvis-cyan/60 transition-colors duration-200">{pct}%</span>
       </div>
-      <div className="h-1.5 bg-jarvis-bg-3/60 rounded-full overflow-hidden">
+      <div className="h-1.5 bg-jarvis-bg-3/60 rounded-full overflow-hidden group-hover/task:h-2 transition-all duration-200">
         <m.div
           className={`h-full rounded-full ${color}`}
           initial={{ width: 0 }}
@@ -128,7 +135,7 @@ function TaskBar({ label, pct, color }: { label: string; pct: number; color: str
           transition={{ duration: 0.8, ease: 'easeOut', delay: 0.2 }}
         />
       </div>
-    </div>
+    </m.div>
   );
 }
 
@@ -161,13 +168,14 @@ function SystemLogs() {
       {logs.map((log, i) => (
         <m.div
           key={`${log.time}-${log.message}-${i}`}
-          className="flex items-start gap-2 text-[11px] font-mono leading-relaxed"
+          className="flex items-start gap-2 text-[11px] font-mono leading-relaxed group/log"
           initial={i === logs.length - 1 ? { opacity: 0, x: -4 } : undefined}
           animate={i === logs.length - 1 ? { opacity: 1, x: 0 } : undefined}
           transition={{ duration: 0.3 }}
+          whileHover={{ x: 3, transition: { type: 'spring', stiffness: 300, damping: 25 } }}
         >
-          <span className="text-jarvis-green/60 shrink-0">[{log.time}]</span>
-          <span className="text-jarvis-green/40">{log.message}</span>
+          <span className="text-jarvis-green/60 shrink-0 group-hover/log:text-jarvis-cyan transition-colors duration-200">[{log.time}]</span>
+          <span className="text-jarvis-green/40 group-hover/log:text-jarvis-text-bright transition-colors duration-200">{log.message}</span>
         </m.div>
       ))}
     </div>
