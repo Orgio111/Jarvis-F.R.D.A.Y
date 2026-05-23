@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
+from app.core.config import get_settings
 from app.core.envelopes import success
 from app.core.logging import get_logger
 from app.core.model_modes import ALL_MODES, MODES_DISPLAY, MODES_DESCRIPTION, compute_mode_availability
@@ -41,7 +42,15 @@ async def list_model_modes(request: Request) -> dict:
     try:
         pr = ProviderRouter.get()
         all_models = await pr.get_all_models()
-        availability = compute_mode_availability(all_models)
+        # Build overrides from env config so the ModelSelector dropdown
+        # shows the correct model even when the provider's model listing
+        # doesn't include the overridden model
+        settings = get_settings()
+        overrides = {
+            m: getattr(settings, f"model_mode_{m}_model_override", None) or ""
+            for m in ALL_MODES
+        }
+        availability = compute_mode_availability(all_models, overrides=overrides)
     except Exception as exc:
         logger.error("list_model_modes_failed", error=str(exc))
         availability = []

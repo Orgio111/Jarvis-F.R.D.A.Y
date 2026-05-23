@@ -6,12 +6,12 @@ model groups and preferred model IDs.  The resolver selects the best
 available model for a given mode from the list of currently-discovered
 models, with manual override support.
 
-    Mode        │ Group(s)         │ Preferred models
-    ────────────┼──────────────────┼──────────────────────────────
-    FAST        │ fastest_chat     │ Mixtral 8x22B, Llama 3.1 8B
-    SMART       │ deep_reasoning   │ Llama 3.3 70B, Nemotron 49B
-    DEEP        │ deep_reasoning   │ DeepSeek, Claude Opus
-    CODING      │ coding           │ Qwen 2.5 Coder, Code Llama
+    Mode        │ Group(s)         │ Preferred model
+    ────────────┼──────────────────┼────────────────────────────────
+    FAST        │ fastest_chat     │ mistralai/mixtral-8x22b-instruct-v0.1
+    SMART       │ deep_reasoning   │ deepseek-ai/deepseek-v4-flash
+    DEEP        │ deep_reasoning   │ deepseek-ai/deepseek-v4-pro
+    CODING      │ coding           │ qwen/qwen3-coder-480b-a35b-instruct
 """
 
 from __future__ import annotations
@@ -34,10 +34,10 @@ MODES_DISPLAY: dict[ChatMode, str] = {
 }
 
 MODES_DESCRIPTION: dict[ChatMode, str] = {
-    "fast":   "Low-latency chat — Mixtral, Llama, Phi & lightweight models",
-    "smart":  "Balanced reasoning — Llama 3.3 70B, Nemotron 49B",
-    "deep":   "Maximum reasoning depth — DeepSeek, Claude Opus, GPT-4o",
-    "coding": "Code-optimised — Qwen Coder, Code Llama, DeepSeek Coder",
+    "fast":   "Low-latency chat — Mixtral 8x22B",
+    "smart":  "Reasoning pro — DeepSeek-V4-Flash",
+    "deep":   "Maximum reasoning depth — DeepSeek-V4-Pro",
+    "coding": "Code-optimised — Qwen-3-Coder 480B",
 }
 
 MODE_TO_GROUPS: dict[ChatMode, list[str]] = {
@@ -48,10 +48,10 @@ MODE_TO_GROUPS: dict[ChatMode, list[str]] = {
 }
 
 MODE_PREFERRED_MODEL_KEYWORDS: dict[ChatMode, list[str]] = {
-    "fast":   ["mixtral", "8x22b", "llama-3.1-", "llama-3.2-", "phi-3", "phi-4", "gemma"],
-    "smart":  ["llama-3.3-70b", "nemotron", "llama-3.1-70b", "sonnet"],
-    "deep":   ["deepseek", "claude-opus", "gpt-4", "o1-", "o3-", "qwen-2.5-72b"],
-    "coding": ["qwen-2.5-coder", "code-llama", "deepseek-coder", "codestral", "starcoder"],
+    "fast":   ["mixtral", "8x22b"],
+    "smart":  ["deepseek-v4-flash", "deepseek"],
+    "deep":   ["deepseek-v4-pro", "deepseek"],
+    "coding": ["qwen3-coder", "480b"],
 }
 
 # ─── Resolver result ────────────────────────────────────────────────────────────
@@ -83,17 +83,37 @@ def resolve_mode(
     mode: ChatMode,
     models: list[dict],
     manual_model_id: str | None = None,
+    overrides: dict[str, str] | None = None,
 ) -> ModeResolution | None:
     """Pick the best model for *mode* from the *models* list.
 
     If *manual_model_id* is given, try to match it exactly first
     (manual override).  Otherwise, follow the preference order in
     MODE_PREFERRED_MODEL_KEYWORDS and fall back to the mode's group(s).
+
+    *overrides* maps mode → exact model ID (e.g. {"smart": "deepseek-ai/deepseek-v4-flash"})
+    — checked before keyword/group matching for reliability when provider
+    model listings don't include the desired model.
     """
     if manual_model_id:
         exact = _find_exact(models, manual_model_id)
         if exact:
             return _to_resolution(mode, exact, is_manual_override=True)
+
+    # 0. Config overrides (skip model listing, use exact ID)
+    if overrides and mode in overrides:
+        override_id = overrides[mode]
+        if override_id:
+            # Extract a friendly display name from the model ID
+            friendly = override_id.rsplit("/", 1)[-1] if "/" in override_id else override_id
+            return ModeResolution(
+                mode=mode,
+                modelId=override_id,
+                providerId="config_override",
+                providerName="Manual Override",
+                modelName=friendly,
+                isManualOverride=True,
+            )
 
     # 1. Try preferred keywords
     keywords = MODE_PREFERRED_MODEL_KEYWORDS.get(mode, [])
@@ -119,6 +139,7 @@ def resolve_mode(
 
 def compute_mode_availability(
     models: list[dict],
+    overrides: dict[str, str] | None = None,
 ) -> list[ModeAvailability]:
     """Return availability info for every mode, used by the /models/modes endpoint."""
     result: list[ModeAvailability] = []
@@ -128,7 +149,7 @@ def compute_mode_availability(
             m for m in models
             if any(g in m.get("groups", []) for g in groups)
         ]
-        resolved = resolve_mode(mode, models)
+        resolved = resolve_mode(mode, models, overrides=overrides)
         result.append(ModeAvailability(
             mode=mode,
             displayName=MODES_DISPLAY[mode],

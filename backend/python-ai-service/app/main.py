@@ -19,6 +19,7 @@ from app.routers import (
     local_actions,
 )
 from app.routers import skills, profile, agent, scheduler as scheduler_router
+from app.routers.brain_router import router as brain_router
 from app.routers.gpu import set_workload_router
 
 logger = get_logger(__name__)
@@ -59,6 +60,21 @@ async def lifespan(app: FastAPI):
         logger.info("provider_router_initialized")
     except Exception as exc:
         logger.warning("provider_router_init_warning", error=str(exc))
+
+    # ── Brain architecture initialisation ──────────────────────────────────────
+    try:
+        from app.brain.smart_router import SmartRouter
+        from app.brain.agent_reputation import AgentReputation
+        from app.brain.strategy_brain import StrategyBrain
+        from app.brain.macro_brain import MacroBrain
+        SmartRouter.initialize()
+        AgentReputation.initialize()
+        StrategyBrain.initialize()
+        MacroBrain.initialize()
+        logger.info("brain_architecture_initialized",
+                     sectors=len(__import__('app.brain.sector_brains', fromlist=['SECTOR_BRAIN_REGISTRY']).SECTOR_BRAIN_REGISTRY))
+    except Exception as exc:
+        logger.warning("brain_init_warning", error=str(exc))
 
     # ── Memory service warm-up (loads embedder + FAISS index) ─────────────────
     if settings.faiss_enabled:
@@ -171,3 +187,6 @@ app.include_router(skills.router)
 app.include_router(profile.router)
 app.include_router(agent.router)
 app.include_router(scheduler_router.router)
+
+# Brain architecture
+app.include_router(brain_router)

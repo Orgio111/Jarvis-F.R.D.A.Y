@@ -15,10 +15,10 @@ export const MODE_LABELS: Record<ChatMode, string> = {
 };
 
 export const MODE_DESCRIPTIONS: Record<ChatMode, string> = {
-  fast: 'Low-latency — Mixtral, Llama, Phi',
-  smart: 'Balanced — Llama 3.3 70B, Nemotron',
-  deep: 'Deep reasoning — DeepSeek, Claude',
-  coding: 'Code-optimised — Qwen Coder, Code Llama',
+  fast: 'Low-latency — Mixtral 8x22B',
+  smart: 'Reasoning pro — DeepSeek-V4-Flash',
+  deep: 'Max reasoning — DeepSeek-V4-Pro',
+  coding: 'Code-optimised — Qwen-3-Coder 480B',
 };
 
 export const MODE_COLORS: Record<ChatMode, string> = {

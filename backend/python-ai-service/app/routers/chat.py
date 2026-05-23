@@ -131,15 +131,27 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
 
     # Resolve model ID — explicit model takes priority, otherwise use mode
     if not model_id:
-        # Try mode resolution first
-        try:
-            all_models = await pr.get_all_models()
-            resolution = resolve_mode(mode, all_models)
-            if resolution:
-                model_id = resolution.modelId
-                logger.info("mode_resolved", mode=mode, model=model_id, provider=resolution.providerId)
-        except Exception as exc:
-            logger.debug("mode_resolution_failed", error=str(exc))
+        # 1. Check for config override first (most reliable — works when
+        #    provider model listing doesn't include the desired model)
+        override_key = f"model_mode_{mode}_model_override"
+        override_model = getattr(settings, override_key, None) or ""
+        if override_model:
+            model_id = override_model
+            logger.info("mode_override_used", mode=mode, model=model_id)
+        else:
+            # 2. Try mode resolution via keyword/group matching
+            try:
+                all_models = await pr.get_all_models()
+                overrides = {
+                    m: getattr(settings, f"model_mode_{m}_model_override", None) or ""
+                    for m in ALL_MODES
+                }
+                resolution = resolve_mode(mode, all_models, overrides=overrides)
+                if resolution:
+                    model_id = resolution.modelId
+                    logger.info("mode_resolved", mode=mode, model=model_id, provider=resolution.providerId)
+            except Exception as exc:
+                logger.debug("mode_resolution_failed", error=str(exc))
 
     # Fallback: pick first chat model from first available provider
     if not model_id:
