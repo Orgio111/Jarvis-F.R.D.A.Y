@@ -45,3 +45,25 @@ func (h *ModelsHandler) List(w http.ResponseWriter, r *http.Request) {
 	}
 	contracts.WriteSuccess(w, correlationID, envelope.Data)
 }
+
+// Modes handles GET /api/models/modes — proxies to Python /models/modes
+func (h *ModelsHandler) Modes(w http.ResponseWriter, r *http.Request) {
+	correlationID := mw.GetCorrelationID(r)
+	sessionID := mw.GetSessionID(r)
+
+	result, err := h.aiProxy.Get(r.Context(), "/models/modes", correlationID, sessionID)
+	if err != nil || !result.IsOK() {
+		contracts.WriteSuccess(w, correlationID, map[string]interface{}{
+			"modes": []interface{}{},
+		})
+		return
+	}
+	var envelope struct {
+		Data interface{} `json:"data"`
+	}
+	if err := result.DecodeInto(&envelope); err != nil {
+		contracts.WriteInternalError(w, correlationID)
+		return
+	}
+	contracts.WriteSuccess(w, correlationID, envelope.Data)
+}

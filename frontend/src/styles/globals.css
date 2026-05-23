@@ -7,20 +7,20 @@
 @layer base {
   :root {
     --jarvis-bg:            #080c14;
-    --jarvis-bg-2:          #0d1424;
-    --jarvis-bg-3:          #111d2e;
+    --jarvis-bg-2:          #0a1020;
+    --jarvis-bg-3:          #0e1a2a;
     --jarvis-cyan:          #00d4ff;
     --jarvis-blue:          #0066ff;
     --jarvis-green:         #00ff88;
     --jarvis-yellow:        #ffd700;
     --jarvis-red:           #ff4466;
+    --jarvis-purple:        #9b59ff;
     --jarvis-text:          #c8d8f0;
-    --jarvis-text-dim:      #6b8ab5;
+    --jarvis-text-dim:      #5a7a9e;
     --jarvis-text-bright:   #e8f4ff;
-    --jarvis-border:        rgba(0, 212, 255, 0.18);
-    --jarvis-border-strong: rgba(0, 212, 255, 0.45);
+    --jarvis-border:        rgba(0, 212, 255, 0.15);
+    --jarvis-border-strong: rgba(0, 212, 255, 0.35);
     --scrollbar-width:      6px;
-    --scrollbar-color:      rgba(0, 212, 255, 0.2);
   }
 
   * {
@@ -52,11 +52,11 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: var(--scrollbar-color);
+    background: rgba(0, 212, 255, 0.15);
     border-radius: 3px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 212, 255, 0.4);
+    background: rgba(0, 212, 255, 0.35);
   }
 
   /* Selection */
@@ -64,50 +64,77 @@
     background: rgba(0, 212, 255, 0.25);
     color: #e8f4ff;
   }
+
+  /* Focus ring */
+  *:focus-visible {
+    outline: 1px solid var(--jarvis-cyan);
+    outline-offset: 2px;
+  }
 }
 
 @layer components {
-  /* Glass panel */
+  /* ── Glass panel ── */
   .jarvis-panel {
-    @apply rounded-lg border bg-jarvis-panel;
+    @apply rounded-xl border;
     border-color: var(--jarvis-border);
-    backdrop-filter: blur(12px);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(0, 212, 255, 0.08);
+    background: linear-gradient(135deg, rgba(10, 18, 36, 0.75), rgba(14, 26, 42, 0.55));
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 rgba(0, 212, 255, 0.08);
   }
 
   .jarvis-panel-hover {
-    @apply transition-all duration-200;
+    @apply transition-all duration-300 ease-out;
   }
 
   .jarvis-panel-hover:hover {
     border-color: var(--jarvis-border-strong);
-    box-shadow: 0 4px 32px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(0, 212, 255, 0.2);
+    background: linear-gradient(135deg, rgba(10, 18, 36, 0.85), rgba(14, 26, 42, 0.65));
+    box-shadow:
+      0 8px 40px rgba(0, 0, 0, 0.7),
+      0 0 30px rgba(0, 212, 255, 0.06),
+      inset 0 1px 0 rgba(0, 212, 255, 0.18);
+    transform: translateY(-1px);
   }
 
-  /* Neon text */
+  /* ── Glass panel with glow variant ── */
+  .jarvis-panel-glow {
+    @apply jarvis-panel;
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.5),
+      0 0 30px rgba(0, 212, 255, 0.06),
+      inset 0 0 20px rgba(0, 212, 255, 0.03),
+      inset 0 1px 0 rgba(0, 212, 255, 0.08);
+  }
+
+  /* ── Neon text ── */
   .neon-cyan {
     color: var(--jarvis-cyan);
     text-shadow: 0 0 8px rgba(0, 212, 255, 0.6);
   }
-
   .neon-blue {
     color: var(--jarvis-blue);
     text-shadow: 0 0 8px rgba(0, 102, 255, 0.6);
   }
-
   .neon-green {
     color: var(--jarvis-green);
     text-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
   }
+  .neon-purple {
+    color: var(--jarvis-purple);
+    text-shadow: 0 0 8px rgba(155, 89, 255, 0.5);
+  }
 
-  /* Status badge */
+  /* ── Status badge ── */
   .status-badge {
     @apply inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium;
   }
 
-  /* Cockpit button */
+  /* ── Cockpit button ── */
   .btn-cockpit {
-    @apply px-4 py-2 rounded border text-sm font-medium transition-all duration-150;
+    @apply px-4 py-2 rounded-lg border text-sm font-medium transition-all duration-200;
     border-color: var(--jarvis-border);
     color: var(--jarvis-text);
     background: transparent;
@@ -116,24 +143,176 @@
   .btn-cockpit:hover {
     border-color: var(--jarvis-cyan);
     color: var(--jarvis-cyan);
-    box-shadow: 0 0 12px rgba(0, 212, 255, 0.2);
+    box-shadow: 0 0 16px rgba(0, 212, 255, 0.2);
+    background: rgba(0, 212, 255, 0.04);
   }
 
   .btn-cockpit-primary {
-    @apply px-4 py-2 rounded border text-sm font-medium transition-all duration-150;
+    @apply px-4 py-2 rounded-lg border text-sm font-medium transition-all duration-200;
     border-color: var(--jarvis-cyan);
     color: var(--jarvis-bg);
     background: var(--jarvis-cyan);
   }
 
   .btn-cockpit-primary:hover {
-    box-shadow: 0 0 16px rgba(0, 212, 255, 0.5);
+    box-shadow: 0 0 24px rgba(0, 212, 255, 0.5);
+    transform: translateY(-1px);
   }
 
-  /* Horizontal rule */
+  /* ── Horizontal rule ── */
   .jarvis-hr {
     border: none;
     height: 1px;
-    background: var(--jarvis-border);
+    background: linear-gradient(90deg, transparent, var(--jarvis-border-strong), transparent);
+  }
+
+  /* ── Animated gradient border ── */
+  .jarvis-border-glow {
+    position: relative;
+  }
+
+  .jarvis-border-glow::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+      135deg,
+      transparent 0%,
+      rgba(0, 212, 255, 0.3) 25%,
+      transparent 50%,
+      rgba(0, 102, 255, 0.2) 75%,
+      transparent 100%
+    );
+    background-size: 200% 200%;
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+    animation: border-rotate 4s linear infinite;
+  }
+
+  @keyframes border-rotate {
+    0% { background-position: 0% 0%; }
+    100% { background-position: 200% 200%; }
+  }
+
+  /* ── Shimmer loading ── */
+  .jarvis-shimmer {
+    background: linear-gradient(
+      90deg,
+      rgba(10, 18, 36, 0.8) 25%,
+      rgba(0, 212, 255, 0.05) 50%,
+      rgba(10, 18, 36, 0.8) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 2s linear infinite;
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  /* ── Metric value text ── */
+  .metric-value {
+    @apply text-2xl font-bold font-mono tracking-tight;
+  }
+
+  .metric-label {
+    @apply text-xs font-mono uppercase tracking-wider;
+  }
+
+  /* ── Animated background grid ── */
+  .jarvis-bg-animated {
+    position: relative;
+  }
+
+  .jarvis-bg-animated::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(0, 212, 255, 0.3), transparent);
+    animation: scan-line 3s ease-in-out infinite;
+  }
+
+  @keyframes scan-line {
+    0%, 100% { opacity: 0.3; }
+    50% { opacity: 1; }
+  }
+
+  /* ── Scanline overlay ── */
+  .jarvis-scanlines {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .jarvis-scanlines::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0, 212, 255, 0.015) 2px,
+      rgba(0, 212, 255, 0.015) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  /* ── HUD corner frame variant ── */
+  .hud-frame {
+    @apply jarvis-panel relative;
+  }
+
+  .hud-frame::before,
+  .hud-frame::after {
+    content: '';
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-color: rgba(0, 229, 255, 0.4);
+    border-style: solid;
+    pointer-events: none;
+  }
+
+  .hud-frame::before {
+    top: 8px;
+    left: 8px;
+    border-width: 1px 0 0 1px;
+  }
+
+  .hud-frame::after {
+    top: 8px;
+    right: 8px;
+    border-width: 1px 1px 0 0;
+  }
+
+  .hud-frame .hud-corner-bl,
+  .hud-frame .hud-corner-br {
+    position: absolute;
+    width: 12px;
+    height: 12px;
+    border-color: rgba(0, 229, 255, 0.4);
+    border-style: solid;
+    pointer-events: none;
+  }
+
+  .hud-frame .hud-corner-bl {
+    bottom: 8px;
+    left: 8px;
+    border-width: 0 0 1px 1px;
+  }
+
+  .hud-frame .hud-corner-br {
+    bottom: 8px;
+    right: 8px;
+    border-width: 0 1px 1px 0;
   }
 }

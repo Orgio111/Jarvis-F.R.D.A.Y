@@ -1,3 +1,4 @@
+import { m } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 export type Status =
@@ -15,26 +16,57 @@ interface StatusDotProps {
   status: Status;
   label?: string;
   className?: string;
+  showRing?: boolean;
 }
 
 const DOT_CLASSES: Record<Status, string> = {
-  ok:      'bg-jarvis-green animate-pulse',
-  online:  'bg-jarvis-green animate-pulse',
+  ok:      'bg-jarvis-green',
+  online:  'bg-jarvis-green',
   warn:     'bg-jarvis-yellow',
   warning:  'bg-jarvis-yellow',
   degraded: 'bg-jarvis-yellow',
-  error:   'bg-jarvis-red animate-pulse',
+  error:   'bg-jarvis-red',
   offline: 'bg-jarvis-red',
   idle:    'bg-jarvis-text-dim',
-  loading: 'bg-jarvis-cyan animate-pulse',
+  loading: 'bg-jarvis-cyan',
 };
 
-export function StatusDot({ status, label, className }: StatusDotProps) {
+const PULSE_CLASSES: Record<Status, boolean> = {
+  ok: true,
+  online: true,
+  warn: false,
+  warning: false,
+  degraded: false,
+  error: true,
+  offline: false,
+  idle: false,
+  loading: true,
+};
+
+export function StatusDot({ status, label, className, showRing = true }: StatusDotProps) {
+  const shouldPulse = PULSE_CLASSES[status];
+
   return (
     <span className={cn('inline-flex items-center gap-2', className)}>
-      <span
-        className={cn('inline-block w-2 h-2 rounded-full flex-shrink-0', DOT_CLASSES[status])}
-      />
+      <span className="relative inline-flex">
+        <span
+          className={cn(
+            'inline-block w-2 h-2 rounded-full flex-shrink-0',
+            DOT_CLASSES[status],
+            shouldPulse && 'animate-pulse',
+          )}
+        />
+        {showRing && shouldPulse && (
+          <m.span
+            className={cn(
+              'absolute inset-0 w-2 h-2 rounded-full',
+              DOT_CLASSES[status],
+            )}
+            animate={{ scale: [1, 2, 1], opacity: [0.4, 0, 0.4] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
+          />
+        )}
+      </span>
       {label && <span className="text-xs font-mono text-jarvis-text-dim">{label}</span>}
     </span>
   );

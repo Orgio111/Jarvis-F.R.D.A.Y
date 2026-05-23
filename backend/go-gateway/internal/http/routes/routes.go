@@ -66,6 +66,7 @@ func Build(cfg *config.Config, aiProxy *proxy.AIProxy, redis *redisclient.Client
 		// Models
 		modelsH := handlers.NewModelsHandler(cfg, aiProxy)
 		r.Get("/api/models", modelsH.List)
+		r.Get("/api/models/modes", modelsH.Modes)
 
 		// Chat
 		chatH := handlers.NewChatHandler(cfg, aiProxy)

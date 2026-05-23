@@ -2,7 +2,7 @@ import React from 'react';
 import { cn } from '@/lib/utils';
 
 interface SectionHeaderProps {
-  title: string;
+  title: React.ReactNode;
   subtitle?: string;
   action?: React.ReactNode;
   className?: string;
@@ -10,13 +10,13 @@ interface SectionHeaderProps {
 
 export function SectionHeader({ title, subtitle, action, className }: SectionHeaderProps) {
   return (
-    <div className={cn('flex items-center justify-between mb-3', className)}>
-      <div>
-        <h3 className="text-jarvis-text-bright text-sm font-semibold tracking-wide uppercase">
+    <div className={cn('flex items-center justify-between mb-4', className)}>
+      <div className="space-y-0.5">
+        <h3 className="text-jarvis-text-bright text-xs font-mono font-semibold tracking-wider uppercase">
           {title}
         </h3>
         {subtitle && (
-          <p className="text-jarvis-text-dim text-xs mt-0.5">{subtitle}</p>
+          <p className="text-jarvis-text-dim text-[10px] font-mono opacity-70">{subtitle}</p>
         )}
       </div>
       {action && <div>{action}</div>}

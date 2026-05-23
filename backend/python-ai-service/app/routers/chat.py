@@ -11,6 +11,8 @@ from fastapi.responses import StreamingResponse
 from app.core.config import get_settings
 from app.core.envelopes import error, new_event, success
 from app.core.logging import get_logger
+from app.core.model_modes import ALL_MODES, _EMBEDDING_KEYWORDS, resolve_mode
+from app.core.persona import inject_system_prompt
 from app.db.database import get_db
 from app.providers.router import ProviderRouter
 
@@ -102,12 +104,21 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
         return _json_error(400, "invalid_request", "messages is required and must be a list", correlation_id)
 
     settings = get_settings()
-    model_id: str = body.get("model") or settings.default_chat_model or ""
+
+    # ── Mode & model resolution ────────────────────────────────────────────────
+    model_id: str = body.get("model") or ""
+    mode: str = body.get("mode") or settings.default_chat_mode or "fast"
     max_tokens: int | None = body.get("max_tokens") or settings.ai_max_tokens or None
     stream: bool = body.get("stream", True)
 
+    if mode not in ALL_MODES:
+        mode = "fast"
+
     # Enrich messages with long-term memory + user profile
     messages = await _enrich_messages_with_memory(db, messages, session_id, user_id)
+
+    # Inject JARVIS system prompt (always first system message)
+    messages = inject_system_prompt(messages)
 
     try:
         pr = ProviderRouter.get()
@@ -118,12 +129,23 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
         logger.error("chat_provider_lookup_failed", error=str(exc))
         return _json_error(503, "provider_unavailable", str(exc), correlation_id)
 
-    # Resolve model ID from primary provider (or first available)
+    # Resolve model ID — explicit model takes priority, otherwise use mode
+    if not model_id:
+        # Try mode resolution first
+        try:
+            all_models = await pr.get_all_models()
+            resolution = resolve_mode(mode, all_models)
+            if resolution:
+                model_id = resolution.modelId
+                logger.info("mode_resolved", mode=mode, model=model_id, provider=resolution.providerId)
+        except Exception as exc:
+            logger.debug("mode_resolution_failed", error=str(exc))
+
+    # Fallback: pick first chat model from first available provider
     if not model_id:
         for p in providers:
             try:
                 models = await p.list_models()
-                # Skip embedding/reranking models — pick first chat-capable one
                 chat_models = [m for m in models if not _is_embedding_model(m["id"])]
                 if chat_models:
                     model_id = chat_models[0]["id"]
@@ -290,9 +312,6 @@ def _extract_content(result: dict) -> str:
         return result["choices"][0]["message"]["content"] or ""
     except (KeyError, IndexError):
         return ""
-
-
-_EMBEDDING_KEYWORDS = ("embed", "rerank", "reranker", "bge-", "e5-", "gte-")
 
 
 def _is_embedding_model(model_id: str) -> bool:

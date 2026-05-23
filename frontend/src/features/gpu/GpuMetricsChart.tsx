@@ -1,11 +1,11 @@
 import { useRef, useEffect } from 'react';
+import { m } from 'framer-motion';
+import { Cpu, Activity, Thermometer } from 'lucide-react';
 import { useGpuStore } from './gpuStore';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 
 /**
- * Simple canvas-based GPU utilisation sparkline.
- * Uses WebGL when available (detected via renderingCapabilities).
- * Falls back to 2D Canvas.
+ * Enhanced canvas-based GPU utilisation sparkline with glow effects.
  */
 export function GpuMetricsChart() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -23,10 +23,11 @@ export function GpuMetricsChart() {
     const H = canvas.height;
     const POINTS = metrics.length;
 
+    // Clear with slight background
     ctx.clearRect(0, 0, W, H);
 
     // Grid lines
-    ctx.strokeStyle = 'rgba(0,212,255,0.06)';
+    ctx.strokeStyle = 'rgba(0,212,255,0.05)';
     ctx.lineWidth = 1;
     for (let y = 0; y <= H; y += H / 4) {
       ctx.beginPath();
@@ -36,52 +37,65 @@ export function GpuMetricsChart() {
     }
 
     if (POINTS < 2) {
-      // Not enough data — show placeholder
-      ctx.fillStyle = 'rgba(0,212,255,0.2)';
+      ctx.fillStyle = 'rgba(0,212,255,0.15)';
       ctx.font = '11px monospace';
-      ctx.fillText('Collecting...', 8, H / 2 + 4);
+      ctx.textAlign = 'center';
+      ctx.fillText('Collecting data...', W / 2, H / 2 + 4);
       return;
     }
 
     const gpuData = metrics.map((m) => m.utilization.gpuPercent);
     const memData = metrics.map((m) => m.utilization.memoryPercent);
 
-    drawLine(ctx, gpuData, W, H, 'rgba(0,212,255,0.8)', 'rgba(0,212,255,0.08)');
-    drawLine(ctx, memData, W, H, 'rgba(0,102,255,0.6)', 'rgba(0,102,255,0.04)');
+    drawLine(ctx, gpuData, W, H, 'rgba(0,212,255,0.9)', 'rgba(0,212,255,0.08)', 'rgba(0,212,255,0.03)');
+    drawLine(ctx, memData, W, H, 'rgba(0,102,255,0.7)', 'rgba(0,102,255,0.06)', 'rgba(0,102,255,0.02)');
 
     // Legend
+    ctx.textAlign = 'left';
     ctx.font = '10px monospace';
     ctx.fillStyle = 'rgba(0,212,255,0.8)';
-    ctx.fillText('GPU%', 4, 12);
+    ctx.fillText('GPU%', 6, 12);
     ctx.fillStyle = 'rgba(0,102,255,0.8)';
-    ctx.fillText('MEM%', 40, 12);
-
+    ctx.fillText('MEM%', 44, 12);
   }, [metrics]);
 
   return (
-    <GlassPanel className="p-4">
-      <p className="text-jarvis-text-dim text-xs font-mono mb-2">Live Utilisation</p>
-      <canvas
-        ref={canvasRef}
-        width={320}
-        height={80}
-        className="w-full h-20 rounded"
-        style={{ imageRendering: 'pixelated' }}
-      />
-      {status && (
-        <div className="flex gap-4 mt-2">
-          <span className="text-xs font-mono text-jarvis-cyan">
-            GPU: {Math.round(status.utilization.gpuPercent)}%
-          </span>
-          <span className="text-xs font-mono text-jarvis-blue">
-            Mem: {Math.round(status.utilization.memoryPercent)}%
-          </span>
-          <span className="text-xs font-mono text-jarvis-text-dim">
-            {status.utilization.temperatureC.toFixed(0)}°C
-          </span>
+    <m.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3 }}
+    >
+      <GlassPanel className="p-5" hover glow>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <Activity size={14} className="text-jarvis-cyan" />
+            <span className="text-jarvis-text-dim text-xs font-mono">Live Utilization</span>
+          </div>
+          {status && (
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-mono text-jarvis-cyan">
+                <Cpu size={10} className="inline mr-1" />
+                {Math.round(status.utilization.gpuPercent)}%
+              </span>
+              <span className="text-xs font-mono text-jarvis-blue">
+                {Math.round(status.utilization.memoryPercent)}%
+              </span>
+              <span className="text-xs font-mono text-jarvis-text-dim">
+                <Thermometer size={10} className="inline mr-1" />
+                {status.utilization.temperatureC.toFixed(0)}°C
+              </span>
+            </div>
+          )}
         </div>
-      )}
-    </GlassPanel>
+        <canvas
+          ref={canvasRef}
+          width={400}
+          height={100}
+          className="w-full h-24 rounded-lg"
+          style={{ imageRendering: 'pixelated' }}
+        />
+      </GlassPanel>
+    </m.div>
   );
 }
 
@@ -91,30 +105,49 @@ function drawLine(
   W: number,
   H: number,
   strokeColor: string,
-  fillColor: string,
+  fillColor1: string,
+  fillColor2: string,
 ) {
   const step = W / (data.length - 1);
 
+  // Gradient fill
+  const gradient = ctx.createLinearGradient(0, 0, 0, H);
+  gradient.addColorStop(0, fillColor1);
+  gradient.addColorStop(1, fillColor2);
+
+  // Fill area under line
   ctx.beginPath();
   ctx.moveTo(0, H - (data[0]! / 100) * H);
   for (let i = 1; i < data.length; i++) {
     ctx.lineTo(i * step, H - (data[i]! / 100) * H);
   }
-
-  // Fill under the line
   ctx.lineTo(W, H);
   ctx.lineTo(0, H);
   ctx.closePath();
-  ctx.fillStyle = fillColor;
+  ctx.fillStyle = gradient;
   ctx.fill();
 
-  // Stroke the line
+  // Stroke line
   ctx.beginPath();
   ctx.moveTo(0, H - (data[0]! / 100) * H);
   for (let i = 1; i < data.length; i++) {
     ctx.lineTo(i * step, H - (data[i]! / 100) * H);
   }
   ctx.strokeStyle = strokeColor;
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = strokeColor;
+  ctx.shadowBlur = 4;
   ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // End dot
+  const lastX = (data.length - 1) * step;
+  const lastY = H - (data[data.length - 1]! / 100) * H;
+  ctx.beginPath();
+  ctx.arc(lastX, lastY, 3, 0, Math.PI * 2);
+  ctx.fillStyle = strokeColor;
+  ctx.shadowColor = strokeColor;
+  ctx.shadowBlur = 8;
+  ctx.fill();
+  ctx.shadowBlur = 0;
 }

@@ -29,6 +29,7 @@ from uuid import uuid4
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.logging import get_logger
+from app.core.persona import JARVIS_IDENTITY
 from app.services import skill_service
 
 logger = get_logger(__name__)
@@ -160,6 +161,7 @@ async def _plan(
     prior_summary = _summarise_actions(prior_actions)
 
     system = (
+        JARVIS_IDENTITY + "\n\n" +
         "You are a task planner. Break the goal into ≤8 concrete, sequential steps. "
         "Output ONLY a JSON object: {\"steps\": [{\"type\": \"llm\"|\"skill\"|\"code\", "
         "\"instruction\": \"…\", \"skill_id\": \"…\" (optional), \"code\": \"…\" (optional)}]}. "
@@ -282,6 +284,7 @@ async def _reflect(goal: str, step_results: list[dict]) -> dict[str, Any]:
     ], indent=None)
 
     system = (
+        JARVIS_IDENTITY + "\n\n" +
         "You are a quality evaluator. Given a goal and the results of execution steps, "
         "decide if the goal was fully satisfied. "
         "Output ONLY JSON: {\"satisfied\": true|false, \"answer\": \"…\", \"feedback\": \"…\"}. "

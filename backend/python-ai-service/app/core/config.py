@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     ai_provider_max_retries: int = 2
     ai_max_tokens: int = 4096
     default_chat_model: str = ""
+    default_chat_mode: str = "fast"
+
+    # ─── Model modes ────────────────────────────────────────────────────────────
+    model_mode_fast_model_override: str = ""
+    model_mode_smart_model_override: str = ""
+    model_mode_deep_model_override: str = ""
+    model_mode_coding_model_override: str = ""
 
     # ─── Model discovery ──────────────────────────────────────────────────────
     model_discovery_enabled: bool = True

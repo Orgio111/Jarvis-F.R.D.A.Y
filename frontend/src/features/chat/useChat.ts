@@ -1,26 +1,52 @@
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 import { apiUrl } from '@/lib/config/env';
 import { getSessionId, generateRequestId } from '@/lib/session/session';
 import { normalizeEvent } from '@/lib/realtime/eventNormalizer';
+import { apiClient } from '@/lib/api/client';
 import type { BackendEvent } from '@/lib/api/types';
 import type {
   ChatStreamStartPayload,
   ChatStreamTokenPayload,
   ChatStreamEndPayload,
   ChatStreamErrorPayload,
+  ModelModesResponse,
 } from './chatTypes';
 import { useChatStore } from './chatStore';
 
 export function useChat() {
-  const { addMessage, updateMessage, appendToken, setStreaming } = useChatStore();
+  const {
+    addMessage,
+    updateMessage,
+    appendToken,
+    setStreaming,
+    setAvailableModes,
+  } = useChatStore();
 
-  const sendMessage = useCallback(async (content: string, modelId?: string) => {
+  // ── Fetch available modes on mount ────────────────────────────────────────────
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiClient.get<ModelModesResponse>('/models/modes');
+        if (!cancelled && res?.modes) {
+          setAvailableModes(res.modes, false);
+        }
+      } catch {
+        if (!cancelled) setAvailableModes([], false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [setAvailableModes]);
+
+  // ── Send message with mode / manual model ─────────────────────────────────────
+  const sendMessage = useCallback(async (content: string) => {
     if (!content.trim()) return;
 
     const userMsgId = `msg_${uuidv4()}`;
     const assistantMsgId = `msg_${uuidv4()}`;
     const now = new Date().toISOString();
+    const state = useChatStore.getState();
 
     addMessage({
       id: userMsgId,
@@ -36,6 +62,7 @@ export function useChat() {
       content: '',
       status: 'pending',
       timestamp: now,
+      mode: state.selectedMode,
     });
 
     setStreaming(true, assistantMsgId);
@@ -47,8 +74,11 @@ export function useChat() {
     const body: Record<string, unknown> = {
       messages,
       stream: true,
+      mode: state.selectedMode,
     };
-    if (modelId) body.model = modelId;
+    if (state.manualModelId) {
+      body.model = state.manualModelId;
+    }
 
     try {
       const url = apiUrl('/chat/completions');

@@ -1,39 +1,50 @@
 import { cn } from '@/lib/utils';
 
-type BadgeColor = 'cyan' | 'blue' | 'green' | 'yellow' | 'red' | 'dim';
+type BadgeColor = 'cyan' | 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'dim';
 
 interface NeonBadgeProps {
   label: string;
   color?: BadgeColor;
   pulse?: boolean;
+  size?: 'sm' | 'md';
   className?: string;
 }
 
 const COLOR_CLASSES: Record<BadgeColor, string> = {
-  cyan:   'border-jarvis-cyan text-jarvis-cyan',
-  blue:   'border-jarvis-blue text-jarvis-blue',
-  green:  'border-jarvis-green text-jarvis-green',
-  yellow: 'border-jarvis-yellow text-jarvis-yellow',
-  red:    'border-jarvis-red text-jarvis-red',
-  dim:    'border-jarvis-border text-jarvis-text-dim',
+  cyan:   'border-jarvis-cyan/30 text-jarvis-cyan bg-jarvis-cyan/5',
+  blue:   'border-jarvis-blue/30 text-jarvis-blue bg-jarvis-blue/5',
+  green:  'border-jarvis-green/30 text-jarvis-green bg-jarvis-green/5',
+  yellow: 'border-jarvis-yellow/30 text-jarvis-yellow bg-jarvis-yellow/5',
+  red:    'border-jarvis-red/30 text-jarvis-red bg-jarvis-red/5',
+  purple: 'border-jarvis-purple/30 text-jarvis-purple bg-jarvis-purple/5',
+  dim:    'border-jarvis-border/30 text-jarvis-text-dim bg-jarvis-bg-2/50',
 };
 
-export function NeonBadge({ label, color = 'cyan', pulse = false, className }: NeonBadgeProps) {
+const SIZE_CLASSES = {
+  sm: 'px-1.5 py-0.5 text-[10px]',
+  md: 'px-2.5 py-1 text-xs',
+};
+
+export function NeonBadge({ label, color = 'cyan', pulse = false, size = 'md', className }: NeonBadgeProps) {
+  const dotColor = color === 'green' ? 'bg-jarvis-green' :
+                   color === 'red' ? 'bg-jarvis-red' :
+                   color === 'yellow' ? 'bg-jarvis-yellow' :
+                   color === 'blue' ? 'bg-jarvis-blue' :
+                   color === 'purple' ? 'bg-jarvis-purple' :
+                   color === 'dim' ? 'bg-jarvis-text-dim' :
+                   'bg-jarvis-cyan';
+
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 px-2 py-0.5 rounded border text-xs font-mono font-medium uppercase tracking-wider',
+        'inline-flex items-center gap-1.5 rounded-full border font-mono font-medium uppercase tracking-wider transition-all duration-200',
         COLOR_CLASSES[color],
+        SIZE_CLASSES[size],
         className,
       )}
     >
       {pulse && (
-        <span
-          className={cn(
-            'w-1 h-1 rounded-full animate-pulse',
-            color === 'green' ? 'bg-jarvis-green' : color === 'red' ? 'bg-jarvis-red' : 'bg-jarvis-cyan',
-          )}
-        />
+        <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ${pulse ? 'animate-pulse' : ''}`} />
       )}
       {label}
     </span>
