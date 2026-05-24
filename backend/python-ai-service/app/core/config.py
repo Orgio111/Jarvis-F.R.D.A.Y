@@ -11,6 +11,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
+        protected_namespaces=(),
     )
 
     # ─── App ──────────────────────────────────────────────────────────────────
@@ -160,6 +161,44 @@ class Settings(BaseSettings):
 
     # ─── Scheduler ────────────────────────────────────────────────────────────
     scheduler_enabled: bool = True
+
+    # ─── Code Indexing ───────────────────────────────────────────────────────
+    code_indexing_enabled: bool = True
+    code_indexing_max_files: int = 5000
+    code_indexing_auto_index: bool = False
+    code_indexing_watch_enabled: bool = False
+
+    # ─── Workflows ───────────────────────────────────────────────────────────
+    workflows_enabled: bool = True
+    workflows_max_nodes: int = 50
+    workflows_max_executions: int = 100
+
+    # ─── Device Agent ────────────────────────────────────────────────────────
+    device_agent_enabled: bool = True
+    device_agent_browser_headless: bool = True
+    device_agent_viewport_width: int = 1280
+    device_agent_viewport_height: int = 720
+
+    # ─── Reasoning ───────────────────────────────────────────────────────────
+    reasoning_enabled: bool = True
+    reasoning_max_depth: int = 5
+    reasoning_max_branches: int = 3
+
+    # ─── Provider Discovery ──────────────────────────────────────────────────
+    provider_discovery_enabled: bool = True
+    provider_discovery_interval_seconds: int = 3600
+    provider_health_monitor_enabled: bool = True
+    provider_health_check_interval: int = 60
+
+    # ─── Image Generation ────────────────────────────────────────────────────
+    image_generation_enabled: bool = True
+    image_generation_local_enabled: bool = True
+    image_generation_max_images: int = 4
+
+    # ─── Prompt Mutation ─────────────────────────────────────────────────────
+    prompt_mutation_enabled: bool = True
+    prompt_mutation_max_generations: int = 5
+    prompt_mutation_max_variants: int = 5
 
     # ─── Observability ────────────────────────────────────────────────────────
     prometheus_enabled: bool = True

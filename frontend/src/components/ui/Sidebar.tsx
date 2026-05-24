@@ -20,6 +20,13 @@ import {
   Settings,
   ChevronLeft,
   Menu,
+  Code2,
+  Workflow,
+  Monitor,
+  Brain,
+  Radio,
+  Image,
+  Dna,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
@@ -41,6 +48,13 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/tools',          label: 'Tools',         icon: Wrench, featureKey: 'tools' },
   { path: '/execution',      label: 'Execution',     icon: PlayCircle, featureKey: 'execution' },
   { path: '/search',         label: 'Search',        icon: Search, featureKey: 'search' },
+  { path: '/code-index',        label: 'Code Intel',     icon: Code2 },
+  { path: '/workflows',         label: 'Workflows',      icon: Workflow },
+  { path: '/device-agent',      label: 'Device Agent',   icon: Monitor },
+  { path: '/reasoning',         label: 'Reasoning',      icon: Brain },
+  { path: '/provider-discovery', label: 'Discovery',    icon: Radio },
+  { path: '/image-generation',  label: 'Images',         icon: Image },
+  { path: '/prompt-mutation',   label: 'Prompts',        icon: Dna },
   { path: '/terminal',       label: 'Terminal',      icon: Terminal, featureKey: 'terminal' },
   { path: '/gpu',            label: 'GPU',           icon: Cpu, featureKey: 'gpuMonitor' },
   { path: '/providers',      label: 'Providers',     icon: Cable },

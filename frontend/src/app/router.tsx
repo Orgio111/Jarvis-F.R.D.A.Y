@@ -16,10 +16,17 @@ const TerminalPage         = lazy(() => import('@/features/execution/TerminalPan
 const ToolsPage            = lazy(() => import('@/features/tools/ToolsPanel').then(m => ({ default: m.ToolsPanel })));
 const SettingsPage         = lazy(() => import('@/features/settings/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const SearchPage           = lazy(() => import('@/features/search/SearchPanel').then(m => ({ default: m.SearchPanel })));
-const VisionPage           = lazy(() => import('@/features/vision/VisionPanel').then(m => ({ default: m.VisionPanel })));
-const MonitoringPage       = lazy(() => import('@/features/monitoring/MonitoringPage').then(m => ({ default: m.MonitoringPage })));
-const SelfImprovementPage  = lazy(() => import('@/features/selfImprovement/SelfImprovementPage').then(m => ({ default: m.SelfImprovementPage })));
-const LocalActionsPage     = lazy(() => import('@/features/localActions/LocalActionsPage').then(m => ({ default: m.LocalActionsPage })));
+const CodeIndexPage        = lazy(() => import('@/features/codeIndexing/CodeIndexPanel').then(m => ({ default: m.CodeIndexPanel })));
+const VisionPage              = lazy(() => import('@/features/vision/VisionPanel').then(m => ({ default: m.VisionPanel })));
+const MonitoringPage          = lazy(() => import('@/features/monitoring/MonitoringPage').then(m => ({ default: m.MonitoringPage })));
+const SelfImprovementPage     = lazy(() => import('@/features/selfImprovement/SelfImprovementPage').then(m => ({ default: m.SelfImprovementPage })));
+const LocalActionsPage        = lazy(() => import('@/features/localActions/LocalActionsPage').then(m => ({ default: m.LocalActionsPage })));
+const WorkflowPage            = lazy(() => import('@/features/workflows/WorkflowPanel').then(m => ({ default: m.WorkflowPanel })));
+const DeviceAgentPage         = lazy(() => import('@/features/deviceAgent/DeviceAgentPanel').then(m => ({ default: m.DeviceAgentPanel })));
+const ReasoningPage           = lazy(() => import('@/features/reasoning/ReasoningPanel').then(m => ({ default: m.ReasoningPanel })));
+const ProviderDiscoveryPage   = lazy(() => import('@/features/providerDiscovery/ProviderDiscoveryPanel').then(m => ({ default: m.ProviderDiscoveryPanel })));
+const ImageGenerationPage     = lazy(() => import('@/features/imageGeneration/ImageGenerationPanel').then(m => ({ default: m.ImageGenerationPanel })));
+const PromptMutationPage      = lazy(() => import('@/features/promptMutation/PromptMutationPanel').then(m => ({ default: m.PromptMutationPanel })));
 
 function NotFoundPage() {
   return (
@@ -124,6 +131,13 @@ export function AppRouter() {
       <Route path="/tools" element={<SuspensePage skeleton="tools"><div className="h-full overflow-auto"><ToolsPage /></div></SuspensePage>} />
       <Route path="/execution" element={<SuspensePage skeleton="terminal"><TerminalPage /></SuspensePage>} />
       <Route path="/search" element={<SuspensePage skeleton="search"><div className="h-full overflow-auto"><SearchPage /></div></SuspensePage>} />
+      <Route path="/code-index" element={<SuspensePage skeleton="search"><div className="h-full overflow-auto"><CodeIndexPage /></div></SuspensePage>} />
+      <Route path="/workflows" element={<SuspensePage skeleton="search"><div className="h-full overflow-auto"><WorkflowPage /></div></SuspensePage>} />
+      <Route path="/device-agent" element={<SuspensePage skeleton="search"><div className="h-full overflow-auto"><DeviceAgentPage /></div></SuspensePage>} />
+      <Route path="/reasoning" element={<SuspensePage skeleton="search"><div className="h-full overflow-auto"><ReasoningPage /></div></SuspensePage>} />
+      <Route path="/provider-discovery" element={<SuspensePage skeleton="providers"><div className="h-full overflow-auto"><ProviderDiscoveryPage /></div></SuspensePage>} />
+      <Route path="/image-generation" element={<SuspensePage skeleton="search"><div className="h-full overflow-auto"><ImageGenerationPage /></div></SuspensePage>} />
+      <Route path="/prompt-mutation" element={<SuspensePage skeleton="search"><div className="h-full overflow-auto"><PromptMutationPage /></div></SuspensePage>} />
       <Route path="/terminal" element={<SuspensePage skeleton="terminal"><TerminalPage /></SuspensePage>} />
       <Route path="/providers" element={
         <SuspensePage skeleton="providers">

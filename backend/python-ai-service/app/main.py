@@ -22,6 +22,13 @@ from app.routers import skills, profile, agent, scheduler as scheduler_router
 from app.routers.brain_router import router as brain_router
 from app.routers.evolution_router import router as evolution_router
 from app.routers.gpu import set_workload_router
+from app.code_indexing.router import router as code_indexing_router
+from app.workflows.router import router as workflows_router
+from app.device_agent.router import router as device_agent_router
+from app.reasoning.router import router as reasoning_router
+from app.provider_discovery.router import router as provider_discovery_router
+from app.image_generation.router import router as image_generation_router
+from app.prompt_mutation.router import router as prompt_mutation_router
 
 logger = get_logger(__name__)
 
@@ -206,3 +213,24 @@ app.include_router(brain_router)
 
 # Evolution & self-improvement
 app.include_router(evolution_router)
+
+# Code indexing (Phase 1)
+app.include_router(code_indexing_router)
+
+# Workflows (Phase 2)
+app.include_router(workflows_router)
+
+# Device Agent (Phase 3)
+app.include_router(device_agent_router)
+
+# Cognitive Reasoning (Phase 4)
+app.include_router(reasoning_router)
+
+# Provider Discovery & Health (Phase 5)
+app.include_router(provider_discovery_router)
+
+# Image Generation (Phase 6)
+app.include_router(image_generation_router)
+
+# Prompt Mutation Engine (Phase 7)
+app.include_router(prompt_mutation_router)
