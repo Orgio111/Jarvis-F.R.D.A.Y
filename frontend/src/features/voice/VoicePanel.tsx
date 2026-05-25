@@ -2,6 +2,8 @@ import { useCallback, useRef, useState, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { m, AnimatePresence } from 'framer-motion';
 import { apiClient } from '@/lib/api/client';
+import { env, apiUrl } from '@/lib/config/env';
+import { generateRequestId, getSessionId } from '@/lib/session/session';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatusDot } from '@/components/ui/StatusDot';
@@ -134,6 +136,26 @@ export function VoicePanel() {
   const [ttsStatus, setTtsStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
 
+  // ── Audio refs for TTS playback ──────────────────────────────────────────
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+
+  const stopAudio = useCallback(() => {
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+  }, []);
+
+  // Cleanup audio on unmount
+  useEffect(() => {
+    return () => stopAudio();
+  }, [stopAudio]);
+
   // ── Wake word state ──────────────────────────────────────────────────────
   const [wakeWordEnabled, setWakeWordEnabled] = useState(true);
   const [isWaken, setIsWaken] = useState(false);
@@ -226,34 +248,68 @@ export function VoicePanel() {
   // ── TTS with interruption ─────────────────────────────────────────────────
   const speakMut = useMutation({
     mutationFn: async (text: string) => {
-      // Simulate TTS with interruption support
-      if (interruptionMode) {
-        // In interruption mode, we can send multiple requests and the backend
-        // handles cancelling the previous one
-        await apiClient.post('/voice/tts', { text, interruptPrevious: true });
-      } else {
-        await apiClient.post('/voice/tts', { text });
+      const url = apiUrl('/voice/tts');
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Request-ID': generateRequestId(),
+          'X-Session-ID': getSessionId(),
+          'X-Client-Version': env.clientVersion,
+        },
+        body: JSON.stringify({ text, interruptPrevious: interruptionMode }),
+      });
+
+      if (!response.ok) {
+        if (response.status === 204) {
+          throw new Error('TTS engine not available');
+        }
+        throw new Error(`TTS failed (HTTP ${response.status})`);
       }
+
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      audioUrlRef.current = blobUrl;
+
+      const audio = new Audio(blobUrl);
+      audioRef.current = audio;
+
+      return new Promise<void>((resolve, reject) => {
+        audio.onended = () => {
+          stopAudio();
+          resolve();
+        };
+        audio.onerror = () => {
+          stopAudio();
+          reject(new Error('Audio playback failed'));
+        };
+        audio.play().catch(reject);
+      });
     },
     onSuccess: () => setTtsStatus('done'),
-    onError: () => setTtsStatus('error'),
+    onError: () => {
+      stopAudio();
+      setTtsStatus('error');
+    },
   });
 
   const speakText = useCallback(async () => {
     if (!ttsText.trim()) return;
+    stopAudio();
+    speakMut.reset();
     setTtsStatus('loading');
     speakMut.mutate(ttsText);
-  }, [ttsText, speakMut]);
+  }, [ttsText, speakMut, stopAudio]);
 
   // Handle interruption — stop current TTS when starting new recording
   const handleInterruptAndRecord = useCallback(async () => {
-    if (interruptionMode && speakMut.isPending) {
-      // Cancel pending TTS
+    if (interruptionMode && (speakMut.isPending || audioRef.current)) {
+      stopAudio();
       speakMut.reset();
       setTtsStatus('idle');
     }
     await startRecording();
-  }, [interruptionMode, speakMut, startRecording]);
+  }, [interruptionMode, speakMut, startRecording, stopAudio]);
 
   const sttAvailable = status?.stt?.available ?? false;
   const ttsAvailable = status?.tts?.available ?? false;
@@ -498,7 +554,7 @@ export function VoicePanel() {
                 </button>
                 {interruptionMode && isPlaying && (
                   <button
-                    onClick={() => { speakMut.reset(); setTtsStatus('idle'); }}
+                    onClick={() => { stopAudio(); speakMut.reset(); setTtsStatus('idle'); }}
                     className="px-3 py-2 rounded-lg border border-jarvis-red/40 text-jarvis-red bg-jarvis-red/5 hover:bg-jarvis-red/10 transition-all text-xs font-mono flex items-center gap-1"
                   >
                     <Pause size={12} />
@@ -516,7 +572,7 @@ export function VoicePanel() {
                     className="flex items-center gap-2 text-jarvis-green text-xs font-mono"
                   >
                     <CheckCircle2 size={12} />
-                    Audio synthesised and sent to backend.
+                    Audio playback complete.
                   </m.div>
                 )}
                 {ttsStatus === 'error' && (

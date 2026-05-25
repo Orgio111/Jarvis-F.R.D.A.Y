@@ -15,11 +15,20 @@ from typing import Any
 
 from app.core.config import Settings
 from app.core.logging import get_logger
-from self_evolution.engine import (
-    EvolutionEngine,
-    EvolutionScore,
-    MutationType,
-)
+
+# Optional import — the self-evolution package may not be installed
+try:
+    from self_evolution.engine import (
+        EvolutionEngine,
+        EvolutionScore,
+        MutationType,
+    )
+    _SELF_EVOLUTION_AVAILABLE = True
+except ImportError:
+    EvolutionEngine = None  # type: ignore
+    EvolutionScore = None  # type: ignore
+    MutationType = None  # type: ignore
+    _SELF_EVOLUTION_AVAILABLE = False
 
 logger = get_logger(__name__)
 
@@ -30,9 +39,14 @@ class SelfEvolutionService:
     _instance: SelfEvolutionService | None = None
 
     def __init__(self, settings: Settings):
-        self._engine = EvolutionEngine.initialize()
-        self._initialized = True
-        logger.info("self_evolution_service_initialized")
+        self._initialized = False
+        if _SELF_EVOLUTION_AVAILABLE:
+            self._engine = EvolutionEngine.initialize()
+            self._initialized = True
+            logger.info("self_evolution_service_initialized")
+        else:
+            self._engine = None
+            logger.warning("self_evolution_unavailable", reason="package_not_installed")
 
     @classmethod
     def initialize(cls, settings: Settings) -> SelfEvolutionService:

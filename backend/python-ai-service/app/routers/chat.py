@@ -178,6 +178,9 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
             },
         )
 
+    # Detect whether the model was forced via config override
+    override_was_used = bool(getattr(settings, f"model_mode_{mode}_model_override", None))
+
     # Extract original user message before enrichment for memory storage
     user_msg = next(
         (m.get("content", "") for m in reversed(messages) if m.get("role") == "user"),
@@ -186,8 +189,29 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
 
     last_exc: Exception | None = None
     for provider in providers:
+        current_model_id = model_id
         try:
-            result = await provider.chat(messages, model_id, max_tokens)
+            # If we're retrying with a different provider after an override model
+            # failed on the previous provider, re-resolve the model using only
+            # the fallback provider's own model list.  This avoids picking the
+            # same override model that just failed on the previous provider.
+            if last_exc is not None and override_was_used:
+                try:
+                    provider_models = await provider.list_models()
+                    resolution = resolve_mode(mode, provider_models, overrides={})
+                    if resolution:
+                        current_model_id = resolution.modelId
+                        override_was_used = False  # Don't re-resolve again
+                        logger.info(
+                            "model_re_resolved_for_fallback",
+                            provider=provider.provider_id,
+                            mode=mode,
+                            model=current_model_id,
+                        )
+                except Exception:
+                    pass  # Keep using original model_id
+
+            result = await provider.chat(messages, current_model_id, max_tokens)
             content = _extract_content(result)
 
             asyncio.ensure_future(_post_turn_update(db, user_msg, content, session_id, user_id))

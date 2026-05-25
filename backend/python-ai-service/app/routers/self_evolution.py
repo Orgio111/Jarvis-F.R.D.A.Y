@@ -6,7 +6,9 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.core.envelopes import success_response, error_response
+from fastapi.responses import JSONResponse
+
+from app.core.envelopes import success, error
 
 router = APIRouter(prefix="/evolution", tags=["evolution"])
 
@@ -23,7 +25,7 @@ def _get_service():
 async def get_evolution_status() -> dict[str, Any]:
     """Get evolution engine status."""
     svc = _get_service()
-    return success_response(svc.get_status())
+    return success(svc.get_status())
 
 
 @router.get("/trials")
@@ -32,7 +34,7 @@ async def get_trials(
 ) -> dict[str, Any]:
     """Get recent evolution trials."""
     svc = _get_service()
-    return success_response({"trials": svc.get_trials(limit=limit)})
+    return success({"trials": svc.get_trials(limit=limit)})
 
 
 @router.get("/best-practices")
@@ -41,7 +43,7 @@ async def get_best_practices(
 ) -> dict[str, Any]:
     """Get most successful mutations as best practices."""
     svc = _get_service()
-    return success_response({"bestPractices": svc.get_best_practices(limit=limit)})
+    return success({"bestPractices": svc.get_best_practices(limit=limit)})
 
 
 @router.post("/propose")
@@ -54,8 +56,8 @@ async def propose_mutation(
     svc = _get_service()
     result = svc.propose_mutation(mutation_type, target, current_value)
     if not result.get("success"):
-        return error_response(result.get("error", "Mutation failed"), status_code=400)
-    return success_response(result)
+        return JSONResponse(status_code=400, content=error("mutation_failed", result.get("error", "Mutation failed")))
+    return success(result)
 
 
 @router.post("/trial")
@@ -86,12 +88,12 @@ async def run_trial(
         cost=cost,
     )
     if not result.get("success"):
-        return error_response(result.get("error", "Trial failed"), status_code=400)
-    return success_response(result)
+        return JSONResponse(status_code=400, content=error("trial_failed", result.get("error", "Trial failed")))
+    return success(result)
 
 
 @router.get("/should-mutate")
 async def should_mutate(current_score: float) -> dict[str, Any]:
     """Check if a mutation should be attempted."""
     svc = _get_service()
-    return success_response(svc.should_mutate(current_score))
+    return success(svc.should_mutate(current_score))

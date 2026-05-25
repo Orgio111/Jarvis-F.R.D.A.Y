@@ -90,6 +90,12 @@ services:
       AI_PROVIDER_ROUTING_MODE: "${AI_PROVIDER_ROUTING_MODE:-auto}"
       DEFAULT_CHAT_MODEL: "${DEFAULT_CHAT_MODEL:-meta/llama-3.1-8b-instruct}"
 
+      # ── Model mode overrides (force specific models for modes) ─────────────
+      # FAST - mistralai/mixtral-8x7b-instruct-v0.1 (NVIDIA NIM compatible)
+      MODEL_MODE_FAST_MODEL_OVERRIDE: "${MODEL_MODE_FAST_MODEL_OVERRIDE:-mistralai/mixtral-8x7b-instruct-v0.1}"
+      MODEL_MODE_DEEP_MODEL_OVERRIDE: "${MODEL_MODE_DEEP_MODEL_OVERRIDE:-deepseek-ai/deepseek-v4-pro}"
+      MODEL_MODE_CODING_MODEL_OVERRIDE: "${MODEL_MODE_CODING_MODEL_OVERRIDE:-qwen/qwen3-coder-480b-a35b-instruct}"
+
       # ── GPU (CPU fallback by default) ───────────────────────────────────────
       GPU_ENABLED: "${GPU_ENABLED:-true}"
       GPU_REQUIRED: "false"
@@ -205,6 +211,24 @@ services:
     depends_on:
       - go-gateway
       - python-ai-service
+    logging: *default-logging
+
+  # ── Jaeger (distributed tracing) ─────────────────────────────────────────────
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      COLLECTOR_ZIPKIN_HOST_PORT: "9411"
+      METRICS_STORAGE_TYPE: "prometheus"
+    ports:
+      - "16686:16686"   # UI
+      - "4318:4318"     # OTLP HTTP
+      - "4317:4317"     # OTLP gRPC
+      - "14268:14268"   # Jaeger HTTP (used by backend)
+    profiles:
+      - tracing
+      - all
     logging: *default-logging
 
   # ── Grafana ──────────────────────────────────────────────────────────────────

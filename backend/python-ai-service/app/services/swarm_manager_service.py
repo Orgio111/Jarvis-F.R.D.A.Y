@@ -15,12 +15,25 @@ from typing import Any
 
 from app.core.config import Settings
 from app.core.logging import get_logger
-from swarm_manager.manager import SwarmManager
-from swarm_manager.models import (
-    AgentCapability,
-    SwarmRole,
-    SwarmSpec,
-)
+
+# Optional import — the swarm-manager package may not be installed
+# in all deployment targets (e.g. Docker base image).
+try:
+    from swarm_manager.manager import SwarmManager
+    from swarm_manager.models import (
+        AgentCapability,
+        SwarmRole,
+        SwarmSpec,
+    )
+    _SWARM_MANAGER_AVAILABLE = True
+except ImportError:
+    SwarmManager = None  # type: ignore
+    SwarmRole = None  # type: ignore
+    SwarmSpec = None  # type: ignore
+    AgentCapability = None  # type: ignore
+    _SWARM_MANAGER_AVAILABLE = False
+    import logging
+    logging.getLogger(__name__).warning("swarm_manager_package_not_available")
 
 logger = get_logger(__name__)
 
@@ -32,20 +45,28 @@ class SwarmManagerService:
     On initialize(), spawns the default set of swarms that match the
     sector brain architecture: research, coding, planner, security,
     browser, devops, vision, voice, memory, and general-purpose.
+
+    If the swarm-manager package is not installed, the service will
+    be unavailable (all methods return empty/default results).
     """
 
     _instance: SwarmManagerService | None = None
 
     def __init__(self, settings: Settings):
         self._settings = settings
-        self._manager = SwarmManager.initialize()
         self._swarm_ids: dict[str, str] = {}  # role → swarm_id
         self._initialized = False
+        if _SWARM_MANAGER_AVAILABLE:
+            self._manager = SwarmManager.initialize()
+        else:
+            self._manager = None
+            logger.warning("swarm_manager_unavailable", reason="package_not_installed")
 
     @classmethod
     def initialize(cls, settings: Settings) -> SwarmManagerService:
         cls._instance = cls(settings)
-        cls._instance._bootstrap()
+        if _SWARM_MANAGER_AVAILABLE:
+            cls._instance._bootstrap()
         return cls._instance
 
     @classmethod
@@ -56,6 +77,9 @@ class SwarmManagerService:
 
     def _bootstrap(self) -> None:
         """Spawn default swarms matching the sector brain architecture."""
+        if not _SWARM_MANAGER_AVAILABLE:
+            self._initialized = True
+            return
         roles = [
             SwarmRole.RESEARCH,
             SwarmRole.CODING,

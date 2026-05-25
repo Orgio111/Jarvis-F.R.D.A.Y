@@ -106,11 +106,11 @@ async def lifespan(app: FastAPI):
 
     # ── Evolution & self-improvement services ──────────────────────────────────
     try:
-from app.services.evolution_service import EvolutionService
-from app.services.self_improvement_loop import SelfImprovementLoop
-from app.services.autonomous_pipeline import AutonomousPipeline
-from app.services.api_registry_service import ApiRegistryService
-from app.services.workflow_service import WorkflowService
+        from app.services.evolution_service import EvolutionService
+        from app.services.self_improvement_loop import SelfImprovementLoop
+        from app.services.autonomous_pipeline import AutonomousPipeline
+        from app.services.api_registry_service import ApiRegistryService
+        from app.services.workflow_service import WorkflowService
         EvolutionService.initialize()
         SelfImprovementLoop.initialize()
         AutonomousPipeline.initialize()

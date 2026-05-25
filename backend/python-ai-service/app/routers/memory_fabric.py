@@ -6,7 +6,9 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.core.envelopes import success_response, error_response
+from fastapi.responses import JSONResponse
+
+from app.core.envelopes import success, error
 
 router = APIRouter(prefix="/memory-fabric", tags=["memory-fabric"])
 
@@ -23,7 +25,7 @@ def _get_service():
 async def get_status() -> dict[str, Any]:
     """Get memory fabric status."""
     svc = _get_service()
-    return success_response(svc.get_status())
+    return success(svc.get_status())
 
 
 @router.post("/store")
@@ -46,7 +48,7 @@ async def store_memory(
         importance=importance,
         confidence=confidence,
     )
-    return success_response(result)
+    return success(result)
 
 
 @router.get("/entries/{entry_id}")
@@ -55,8 +57,8 @@ async def get_memory(entry_id: str) -> dict[str, Any]:
     svc = _get_service()
     entry = svc.get(entry_id)
     if not entry:
-        return error_response(f"Entry {entry_id} not found", status_code=404)
-    return success_response(entry)
+        return JSONResponse(status_code=404, content=error("not_found", f"Entry {entry_id} not found"))
+    return success(entry)
 
 
 @router.get("/search")
@@ -68,7 +70,7 @@ async def search_memory(
     """Search memory by text content."""
     svc = _get_service()
     results = svc.search(q, layer=layer, limit=limit)
-    return success_response({"results": results, "count": len(results)})
+    return success({"results": results, "count": len(results)})
 
 
 @router.get("/query")
@@ -92,7 +94,7 @@ async def query_memory(
         limit=limit,
         source=source,
     )
-    return success_response({"results": results, "count": len(results)})
+    return success({"results": results, "count": len(results)})
 
 
 @router.get("/cross-layer")
@@ -103,7 +105,7 @@ async def cross_layer_query(
     """Query all memory layers for a topic."""
     svc = _get_service()
     results = svc.cross_layer_query(topic, limit_per_layer=per_layer)
-    return success_response(results)
+    return success(results)
 
 
 @router.get("/recent")
@@ -114,7 +116,7 @@ async def recent_memories(
     """Get recent memory entries."""
     svc = _get_service()
     results = svc.get_recent(layer=layer, limit=limit)
-    return success_response({"results": results})
+    return success({"results": results})
 
 
 @router.post("/prune")
@@ -122,7 +124,7 @@ async def prune_memory() -> dict[str, Any]:
     """Prune stale/low-importance entries."""
     svc = _get_service()
     result = svc.prune()
-    return success_response(result)
+    return success(result)
 
 
 @router.get("/stats")

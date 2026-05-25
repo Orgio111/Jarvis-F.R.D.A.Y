@@ -15,12 +15,22 @@ from typing import Any
 
 from app.core.config import Settings
 from app.core.logging import get_logger
-from memory_fabric.fabric import (
-    FabricConfig,
-    MemoryFabric,
-    MemoryLayer,
-    MemoryQuery,
-)
+
+# Optional import — the memory-fabric package may not be installed
+try:
+    from memory_fabric.fabric import (
+        FabricConfig,
+        MemoryFabric,
+        MemoryLayer,
+        MemoryQuery,
+    )
+    _MEMORY_FABRIC_AVAILABLE = True
+except ImportError:
+    FabricConfig = None  # type: ignore
+    MemoryFabric = None  # type: ignore
+    MemoryLayer = None  # type: ignore
+    MemoryQuery = None  # type: ignore
+    _MEMORY_FABRIC_AVAILABLE = False
 
 logger = get_logger(__name__)
 
@@ -38,12 +48,17 @@ class MemoryFabricService:
     _instance: MemoryFabricService | None = None
 
     def __init__(self, settings: Settings):
-        config = FabricConfig(
-            max_entries_per_layer=settings.get("memory_fabric_max_entries", 5000),
-            enable_auto_prune=settings.get("memory_fabric_auto_prune", True),
-        )
-        self._fabric = MemoryFabric.get_or_create(config)
-        self._initialized = True
+        self._initialized = False
+        if _MEMORY_FABRIC_AVAILABLE:
+            config = FabricConfig(
+                max_entries_per_layer=settings.get("memory_fabric_max_entries", 5000),
+                enable_auto_prune=settings.get("memory_fabric_auto_prune", True),
+            )
+            self._fabric = MemoryFabric.get_or_create(config)
+            self._initialized = True
+        else:
+            self._fabric = None
+            logger.warning("memory_fabric_unavailable", reason="package_not_installed")
 
     @classmethod
     def initialize(cls, settings: Settings) -> MemoryFabricService:
