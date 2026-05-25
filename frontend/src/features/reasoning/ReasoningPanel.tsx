@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { m } from 'framer-motion';
-import { Brain, Network, CheckCircle2, AlertCircle, Layers, GitBranch, BarChart3, Lightbulb, Zap, TrendingUp } from 'lucide-react';
+import { Brain, Network, CheckCircle2, Layers, GitBranch, BarChart3, Lightbulb, Zap, TrendingUp } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { NeonBadge } from '@/components/ui/NeonBadge';
@@ -40,7 +40,7 @@ export function ReasoningPanel() {
         subtitle="Tree-of-thought, self-verification & debate engine"
         icon={Brain}
         actions={
-          <NeonBadge color="violet">v2 Advanced</NeonBadge>
+          <NeonBadge color="purple">v2 Advanced</NeonBadge>
         }
       />
 
@@ -79,7 +79,7 @@ export function ReasoningPanel() {
           <GlassPanel className="p-4">
             <div className="flex items-center justify-between mb-3">
               <span className="text-[10px] font-mono text-jarvis-text-dim/60 uppercase tracking-[0.15em]">Query</span>
-              <NeonBadge color={selectedStrategy === 'tree_of_thought' ? 'violet' : 'cyan'}>
+              <NeonBadge color={selectedStrategy === 'tree_of_thought' ? 'purple' : 'cyan'}>
                 {STRATEGIES.find(s => s.id === selectedStrategy)?.label}
               </NeonBadge>
             </div>

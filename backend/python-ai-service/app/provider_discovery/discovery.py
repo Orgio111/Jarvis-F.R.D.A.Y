@@ -99,7 +99,7 @@ class ProviderDiscoverer:
         start = time.perf_counter()
         try:
             # Try to fetch models endpoint — use configured API key if available
-            headers = self._get_auth_headers(ep.name)
+            headers = self.get_auth_for_provider(ep.name)
             response = await self._http.get(
                 f"{ep.base_url}/models",
                 headers=headers,
@@ -144,8 +144,13 @@ class ProviderDiscoverer:
 
         return ep
 
-    def _get_auth_headers(self, provider_name: str) -> dict[str, str]:
-        """Get auth headers for a provider based on configured API keys."""
+    def get_auth_for_provider(self, provider_name: str) -> dict[str, str]:
+        """
+        Get auth headers for a provider based on configured API keys.
+
+        Public method — used by DiscoveredProvider and any other consumer
+        that needs to authenticate against discovered endpoints.
+        """
         from app.core.config import get_settings
         s = get_settings()
         key_map = {

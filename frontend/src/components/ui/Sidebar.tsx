@@ -27,6 +27,10 @@ import {
   Radio,
   Image,
   Dna,
+  Globe,
+  Users,
+  Layers,
+  FlaskConical,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
@@ -55,6 +59,10 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/provider-discovery', label: 'Discovery',    icon: Radio },
   { path: '/image-generation',  label: 'Images',         icon: Image },
   { path: '/prompt-mutation',   label: 'Prompts',        icon: Dna },
+  { path: '/external-apis',     label: 'APIs',           icon: Globe },
+  { path: '/swarm',             label: 'Swarm',          icon: Users },
+  { path: '/memory-fabric',     label: 'Memory Fab',     icon: Layers },
+  { path: '/self-evolution',    label: 'Evolution',     icon: FlaskConical },
   { path: '/terminal',       label: 'Terminal',      icon: Terminal, featureKey: 'terminal' },
   { path: '/gpu',            label: 'GPU',           icon: Cpu, featureKey: 'gpuMonitor' },
   { path: '/providers',      label: 'Providers',     icon: Cable },

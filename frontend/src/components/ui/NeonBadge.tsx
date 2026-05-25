@@ -4,7 +4,8 @@ import { cn } from '@/lib/utils';
 type BadgeColor = 'cyan' | 'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'dim';
 
 interface NeonBadgeProps {
-  label: string;
+  label?: string;
+  children?: React.ReactNode;
   color?: BadgeColor;
   pulse?: boolean;
   size?: 'sm' | 'md';
@@ -26,7 +27,7 @@ const SIZE_CLASSES = {
   md: 'px-2.5 py-1 text-xs',
 };
 
-export function NeonBadge({ label, color = 'cyan', pulse = false, size = 'md', className }: NeonBadgeProps) {
+export function NeonBadge({ label, children, color = 'cyan', pulse = false, size = 'md', className }: NeonBadgeProps) {
   const dotColor = color === 'green' ? 'bg-jarvis-green' :
                    color === 'red' ? 'bg-jarvis-red' :
                    color === 'yellow' ? 'bg-jarvis-yellow' :
@@ -59,7 +60,7 @@ export function NeonBadge({ label, color = 'cyan', pulse = false, size = 'md', c
       {pulse && (
         <span className={`w-1.5 h-1.5 rounded-full ${dotColor} ${pulse ? 'animate-pulse' : ''}`} />
       )}
-      {label}
+      {children ?? label}
     </m.span>
   );
 }

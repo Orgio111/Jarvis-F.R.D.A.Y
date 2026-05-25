@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { m } from 'framer-motion';
-import { Image, Sparkles, Download, Sliders, RefreshCw, History, Square, Wand2 } from 'lucide-react';
+import { Image, Sparkles, Wand2 } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { NeonBadge } from '@/components/ui/NeonBadge';
@@ -33,7 +33,7 @@ export function ImageGenerationPanel() {
         subtitle="Ultra-fast Sana-powered local image synthesis"
         icon={Image}
         actions={
-          <NeonBadge color="violet">
+          <NeonBadge color="purple">
             <Sparkles size={10} className="mr-1" />
             Sana 600M
           </NeonBadge>

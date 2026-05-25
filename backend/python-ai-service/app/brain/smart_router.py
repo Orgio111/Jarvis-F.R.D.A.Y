@@ -278,5 +278,63 @@ class SmartRouter:
         reason = reasons.get(complexity, f"Routed to {mode} mode")
         return f"{reason} (confidence: {confidence:.0%})"
 
+    def get_discovered_providers_for_task(
+        self,
+        task: str,
+        capability: str | None = None,
+    ) -> list[dict]:
+        """
+        Check if any discovered providers are suitable for this task.
+        Returns scored provider recommendations using the public
+        get_endpoint_summary() interface.
+        """
+        try:
+            from app.providers.router import ProviderRouter
+            pr = ProviderRouter.get()
+            discovered = pr.get_discovered_providers()
+        except Exception:
+            return []
+
+        task_lower = task.lower()
+        results = []
+
+        for p in discovered:
+            if not p.is_available():
+                continue
+
+            # Gather metadata via public interface
+            summary = getattr(p, "get_endpoint_summary", lambda: {})()
+            caps = set(summary.get("capabilities", []))
+
+            if capability and capability not in caps:
+                continue
+
+            # Simple scoring based on task content
+            score = float(summary.get("score", 0))
+
+            # Boost for free providers on simple tasks
+            if summary.get("isFree", False) and len(task) < 200:
+                score += 10
+
+            # Boost for coding-capable providers on code tasks
+            if "code" in task_lower and "coding" in caps:
+                score += 15
+
+            # Boost for low-latency providers
+            latency = summary.get("latencyMs", 0)
+            if latency > 0 and latency < 500:
+                score += 10
+
+            results.append({
+                "providerId": p.provider_id,
+                "providerName": p.provider_name,
+                "score": round(score, 1),
+                "isFree": summary.get("isFree", False),
+                "latencyMs": round(latency, 1),
+            })
+
+        results.sort(key=lambda r: r["score"], reverse=True)
+        return results[:5]
+
     def get_routing_history(self, limit: int = 20) -> list[dict]:
         return self._routing_history[-limit:]

@@ -10,7 +10,9 @@ export type Status =
   | 'online'
   | 'offline'
   | 'warning'
-  | 'degraded';
+  | 'degraded'
+  | 'active'
+  | 'inactive';
 
 interface StatusDotProps {
   status: Status;
@@ -22,11 +24,13 @@ interface StatusDotProps {
 const DOT_CLASSES: Record<Status, string> = {
   ok:      'bg-jarvis-green',
   online:  'bg-jarvis-green',
+  active:  'bg-jarvis-green',
   warn:     'bg-jarvis-yellow',
   warning:  'bg-jarvis-yellow',
   degraded: 'bg-jarvis-yellow',
   error:   'bg-jarvis-red',
   offline: 'bg-jarvis-red',
+  inactive: 'bg-jarvis-text-dim',
   idle:    'bg-jarvis-text-dim',
   loading: 'bg-jarvis-cyan',
 };
@@ -34,11 +38,13 @@ const DOT_CLASSES: Record<Status, string> = {
 const PULSE_CLASSES: Record<Status, boolean> = {
   ok: true,
   online: true,
+  active: true,
   warn: false,
   warning: false,
   degraded: false,
   error: true,
   offline: false,
+  inactive: false,
   idle: false,
   loading: true,
 };

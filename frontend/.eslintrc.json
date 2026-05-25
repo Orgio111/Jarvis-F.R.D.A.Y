@@ -10,7 +10,7 @@
     "ecmaVersion": "latest",
     "sourceType": "module"
   },
-  "plugins": ["@typescript-eslint"],
+  "plugins": ["@typescript-eslint", "react-hooks"],
   "rules": {
     "no-unused-vars": "off",
     "no-undef": "off",
@@ -22,7 +22,9 @@
         "args": "after-used",
         "ignoreRestSiblings": true
       }
-    ]
+    ],
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn"
   },
   "ignorePatterns": ["dist", "node_modules", "src-tauri"]
 }

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from contextlib import asynccontextmanager
 
@@ -29,6 +30,13 @@ from app.reasoning.router import router as reasoning_router
 from app.provider_discovery.router import router as provider_discovery_router
 from app.image_generation.router import router as image_generation_router
 from app.prompt_mutation.router import router as prompt_mutation_router
+
+# New system integrations
+from app.routers import external_apis as external_apis_router
+from app.routers import workflows_engine as workflows_engine_router
+from app.routers import swarm_manager as swarm_manager_router
+from app.routers import memory_fabric as memory_fabric_router
+from app.routers import self_evolution as self_evolution_router
 
 logger = get_logger(__name__)
 
@@ -66,6 +74,18 @@ async def lifespan(app: FastAPI):
     try:
         ProviderRouter.initialize(settings)
         logger.info("provider_router_initialized")
+
+        # Sync discovered providers (non-blocking background task)
+        if settings.provider_discovery_enabled:
+            async def _sync_discovered():
+                try:
+                    pr = ProviderRouter.get()
+                    count = await pr.sync_discovered()
+                    logger.info("discovered_providers_synced_at_startup", count=count)
+                except Exception as exc:
+                    logger.warning("discovery_sync_warning", error=str(exc))
+
+            asyncio.ensure_future(_sync_discovered())
     except Exception as exc:
         logger.warning("provider_router_init_warning", error=str(exc))
 
@@ -86,9 +106,11 @@ async def lifespan(app: FastAPI):
 
     # ── Evolution & self-improvement services ──────────────────────────────────
     try:
-        from app.services.evolution_service import EvolutionService
-        from app.services.self_improvement_loop import SelfImprovementLoop
-        from app.services.autonomous_pipeline import AutonomousPipeline
+from app.services.evolution_service import EvolutionService
+from app.services.self_improvement_loop import SelfImprovementLoop
+from app.services.autonomous_pipeline import AutonomousPipeline
+from app.services.api_registry_service import ApiRegistryService
+from app.services.workflow_service import WorkflowService
         EvolutionService.initialize()
         SelfImprovementLoop.initialize()
         AutonomousPipeline.initialize()
@@ -115,6 +137,44 @@ async def lifespan(app: FastAPI):
         logger.info("scheduler_ready")
     except Exception as exc:
         logger.warning("scheduler_init_warning", error=str(exc))
+
+    # ── External API Registry ────────────────────────────────────────────
+    try:
+        ApiRegistryService.initialize(settings)
+        logger.info("api_registry_service_initialized")
+    except Exception as exc:
+        logger.warning("api_registry_init_warning", error=str(exc))
+
+    # ── Workflow Engine (Ruflo) ────────────────────────────────────────────
+    try:
+        WorkflowService.initialize(settings)
+        logger.info("workflow_service_initialized")
+    except Exception as exc:
+        logger.warning("workflow_init_warning", error=str(exc))
+
+    # ── Swarm Manager (v3 Distributed Autonomous Swarm Intelligence) ──
+    try:
+        from app.services.swarm_manager_service import SwarmManagerService
+        SwarmManagerService.initialize(settings)
+        logger.info("swarm_manager_initialized")
+    except Exception as exc:
+        logger.warning("swarm_manager_init_warning", error=str(exc))
+
+    # ── Memory Fabric (v3 Multi-Layered Cognitive Memory) ──
+    try:
+        from app.services.memory_fabric_service import MemoryFabricService
+        MemoryFabricService.initialize(settings)
+        logger.info("memory_fabric_initialized")
+    except Exception as exc:
+        logger.warning("memory_fabric_init_warning", error=str(exc))
+
+    # ── Self-Evolution Engine (v3 Self-Improvement) ──
+    try:
+        from app.services.self_evolution_service import SelfEvolutionService
+        SelfEvolutionService.initialize(settings)
+        logger.info("self_evolution_initialized")
+    except Exception as exc:
+        logger.warning("self_evolution_init_warning", error=str(exc))
 
     logger.info("jarvis_ai_service_ready", host=settings.app_host, port=settings.app_port)
 
@@ -234,3 +294,18 @@ app.include_router(image_generation_router)
 
 # Prompt Mutation Engine (Phase 7)
 app.include_router(prompt_mutation_router)
+
+# External API Registry (Phase 8)
+app.include_router(external_apis_router.router)
+
+# Workflow Engine (Ruflo) — new execution layer (Phase 8)
+app.include_router(workflows_engine_router.router)
+
+# Swarm Manager (Phase 9 — v3 Distributed Autonomous Swarm Intelligence)
+app.include_router(swarm_manager_router.router)
+
+# Memory Fabric (Phase 9 — v3 Multi-Layered Cognitive Memory)
+app.include_router(memory_fabric_router.router)
+
+# Self-Evolution Engine (Phase 9 — v3 Self-Improvement)
+app.include_router(self_evolution_router.router)

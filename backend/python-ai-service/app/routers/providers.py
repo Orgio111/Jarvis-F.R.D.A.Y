@@ -22,6 +22,53 @@ async def list_providers(request: Request) -> dict:
     return success(statuses, correlation_id)
 
 
+@router.get("/providers/discovered")
+async def list_discovered_providers(request: Request) -> dict:
+    """List only dynamically discovered providers with rich metadata."""
+    correlation_id = request.headers.get("x-correlation-id")
+    try:
+        pr = ProviderRouter.get()
+        discovered = pr.get_discovered_providers()
+        result = []
+        for p in discovered:
+            health = await p.health_check()
+            summary = getattr(p, "get_endpoint_summary", lambda: {})()
+            result.append({
+                "id": p.provider_id,
+                "name": p.provider_name,
+                "status": health["status"],
+                "reason": health.get("reason"),
+                "deviceMode": p.device_mode,
+                "isDefault": False,
+                "isFallback": False,
+                "isDiscovered": True,
+                "latencyMs": summary.get("latencyMs", 0),
+                "score": summary.get("score", 0),
+                "modelCount": summary.get("modelCount", 0),
+                "capabilities": summary.get("capabilities", []),
+                "isFree": summary.get("isFree", False),
+                "baseUrl": summary.get("baseUrl", ""),
+                "models": summary.get("models", []),
+            })
+    except Exception as exc:
+        logger.error("list_discovered_failed", error=str(exc))
+        return success([], correlation_id)
+    return success(result, correlation_id)
+
+
+@router.post("/providers/discover/sync")
+async def sync_discovered_providers(request: Request) -> dict:
+    """Manually trigger provider discovery and sync discovered providers into the router."""
+    correlation_id = request.headers.get("x-correlation-id")
+    try:
+        pr = ProviderRouter.get()
+        count = await pr.sync_discovered()
+        return success({"synced": count}, correlation_id)
+    except Exception as exc:
+        logger.error("sync_discovered_failed", error=str(exc))
+        return error("sync_error", str(exc), correlation_id=correlation_id)
+
+
 @router.get("/providers/{provider_id}")
 async def get_provider(provider_id: str, request: Request) -> dict:
     correlation_id = request.headers.get("x-correlation-id")
@@ -38,6 +85,7 @@ async def get_provider(provider_id: str, request: Request) -> dict:
                 "status": health["status"],
                 "reason": health.get("reason"),
                 "deviceMode": provider.device_mode,
+                "isDiscovered": provider.provider_id.startswith("discovered:"),
             },
             correlation_id,
         )

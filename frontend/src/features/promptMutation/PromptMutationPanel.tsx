@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { m } from 'framer-motion';
-import { Dna, GitCompare, TrendingUp, FileText, RefreshCw, Plus, CheckCircle2, AlertCircle, Target } from 'lucide-react';
+import { Dna, GitCompare, TrendingUp, FileText, Plus, CheckCircle2, AlertCircle, Target } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { NeonBadge } from '@/components/ui/NeonBadge';

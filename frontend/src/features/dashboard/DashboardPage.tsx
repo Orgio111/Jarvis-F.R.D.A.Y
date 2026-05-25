@@ -22,6 +22,12 @@ import {
   Boxes,
   RefreshCw,
   Shield,
+  Users,
+  Layers,
+  FlaskConical,
+  Globe,
+  Dna,
+  TrendingUp,
 } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { HudVisualization } from '@/components/ui/HudVisualization';
@@ -250,6 +256,37 @@ export function DashboardPage() {
   const providers = bootstrap?.providers;
   const gpu = bootstrap?.gpu;
   const features = bootstrap?.features;
+
+  // ── v3 Architecture hooks ──
+  const { data: swarmStatus } = useQuery<{ totalSwarms: number; totalAgents: number; activeAgents: number }>({
+    queryKey: ['swarm', 'status'],
+    queryFn: () => apiClient.get('/swarm/status'),
+    enabled: bootstrapReady,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+  });
+  const { data: swarmHealth } = useQuery<{ health: { isHealthy: boolean }[] }>({
+    queryKey: ['swarm', 'health'],
+    queryFn: () => apiClient.get('/swarm/health'),
+    enabled: bootstrapReady,
+    staleTime: 20_000,
+    gcTime: 5 * 60_000,
+    refetchInterval: 30_000,
+  });
+  const { data: memStats } = useQuery<{ totalEntries: number; entriesByLayer: Record<string, number>; avgImportance: number; avgConfidence: number }>({
+    queryKey: ['memory-fabric', 'stats'],
+    queryFn: () => apiClient.get('/memory-fabric/stats'),
+    enabled: bootstrapReady,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+  });
+  const { data: evolStatus } = useQuery<{ totalTrials: number; improvedTrials: number; improvementRate: number; targetsTracked: number }>({
+    queryKey: ['evolution', 'status'],
+    queryFn: () => apiClient.get('/evolution/status'),
+    enabled: bootstrapReady,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+  });
 
   const checks = health?.checks ?? {};
   const pythonOk = checks['python-ai-service']?.status === 'pass';
@@ -502,6 +539,10 @@ export function DashboardPage() {
               <QuickActionButton to="/search" icon={<Search size={16} />} label="Search" color="var(--jarvis-blue)" />
               <QuickActionButton to="/memory" icon={<Database size={16} />} label="Memory" color="var(--jarvis-green)" />
               <QuickActionButton to="/gpu" icon={<Cpu size={16} />} label="GPU" color="var(--jarvis-purple)" />
+              <QuickActionButton to="/swarm" icon={<Users size={16} />} label="Swarm" color="var(--jarvis-purple)" />
+              <QuickActionButton to="/memory-fabric" icon={<Layers size={16} />} label="Memory Fab" color="var(--jarvis-blue)" />
+              <QuickActionButton to="/self-evolution" icon={<FlaskConical size={16} />} label="Evolution" color="var(--jarvis-green)" />
+              <QuickActionButton to="/external-apis" icon={<Globe size={16} />} label="APIs" color="var(--jarvis-yellow)" />
             </div>
 
             {/* Features */}
@@ -525,6 +566,71 @@ export function DashboardPage() {
                 </div>
               </HudFrame>
             )}
+
+            {/* ── v3 Architecture Status ── */}
+            <HudFrame className="p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <Dna size={14} className="text-jarvis-purple" />
+                <span className="text-jarvis-purple text-xs font-mono font-bold tracking-[0.15em] uppercase">V3 ARCHITECTURE</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Swarm */}
+                <Link to="/swarm" className="p-4 rounded-lg border border-jarvis-border/20 bg-jarvis-bg-2/30 hover:border-jarvis-purple/40 hover:bg-jarvis-bg-2/60 transition-all duration-200 group">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users size={14} className="text-jarvis-purple" />
+                    <span className="text-xs font-mono text-jarvis-text-bright group-hover:text-jarvis-purple transition-colors">Swarm Manager</span>
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-3">
+                    <span className="text-lg font-mono font-bold text-jarvis-text-bright">{swarmStatus?.totalAgents ?? '—'}</span>
+                    <span className="text-[10px] font-mono text-jarvis-text-dim/60">agents</span>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 text-[10px] font-mono text-jarvis-text-dim/60">
+                    <span>{swarmStatus?.totalSwarms ?? '—'} swarms</span>
+                    <span className="flex items-center gap-1">
+                      <span className={`w-1.5 h-1.5 rounded-full ${swarmHealth?.health?.every(h => h.isHealthy) ? 'bg-jarvis-green' : 'bg-jarvis-yellow'}`} />
+                      {swarmHealth?.health?.every(h => h.isHealthy) ? 'Healthy' : 'Mixed'}
+                    </span>
+                  </div>
+                </Link>
+
+                {/* Memory Fabric */}
+                <Link to="/memory-fabric" className="p-4 rounded-lg border border-jarvis-border/20 bg-jarvis-bg-2/30 hover:border-jarvis-blue/40 hover:bg-jarvis-bg-2/60 transition-all duration-200 group">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Layers size={14} className="text-jarvis-blue" />
+                    <span className="text-xs font-mono text-jarvis-text-bright group-hover:text-jarvis-blue transition-colors">Memory Fabric</span>
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-3">
+                    <span className="text-lg font-mono font-bold text-jarvis-text-bright">{memStats?.totalEntries ?? '—'}</span>
+                    <span className="text-[10px] font-mono text-jarvis-text-dim/60">entries</span>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 text-[10px] font-mono text-jarvis-text-dim/60">
+                    {memStats?.entriesByLayer && Object.entries(memStats.entriesByLayer).map(([layer, count]) => (
+                      <span key={layer} className="capitalize">{layer}: {count}</span>
+                    ))}
+                  </div>
+                </Link>
+
+                {/* Self-Evolution */}
+                <Link to="/self-evolution" className="p-4 rounded-lg border border-jarvis-border/20 bg-jarvis-bg-2/30 hover:border-jarvis-green/40 hover:bg-jarvis-bg-2/60 transition-all duration-200 group">
+                  <div className="flex items-center gap-2 mb-2">
+                    <FlaskConical size={14} className="text-jarvis-green" />
+                    <span className="text-xs font-mono text-jarvis-text-bright group-hover:text-jarvis-green transition-colors">Self-Evolution</span>
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-3">
+                    <span className="text-lg font-mono font-bold text-jarvis-text-bright">{evolStatus?.totalTrials ?? '—'}</span>
+                    <span className="text-[10px] font-mono text-jarvis-text-dim/60">trials</span>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1 text-[10px] font-mono text-jarvis-text-dim/60">
+                    <span className="flex items-center gap-1">
+                      <TrendingUp size={10} className={((evolStatus?.improvementRate ?? 0) > 0.5) ? 'text-jarvis-green' : 'text-jarvis-yellow'} />
+                      {(evolStatus?.improvementRate ?? 0) > 0
+                        ? `${((evolStatus?.improvementRate ?? 0) * 100).toFixed(0)}% improved`
+                        : 'No data'}
+                    </span>
+                  </div>
+                </Link>
+              </div>
+            </HudFrame>
           </m.div>
         )}
 

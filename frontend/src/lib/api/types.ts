@@ -119,7 +119,14 @@ export interface ProviderStatus {
   deviceMode: 'cloud' | 'gpu' | 'cpu' | 'disabled';
   isDefault?: boolean;
   isFallback?: boolean;
+  isDiscovered?: boolean;
   latencyMs?: number;
+  /** Discovered-only fields */
+  score?: number;
+  capabilities?: string[];
+  isFree?: boolean;
+  baseUrl?: string;
+  models?: string[];
 }
 
 export interface ProvidersSummary {

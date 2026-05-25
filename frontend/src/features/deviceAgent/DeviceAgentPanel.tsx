@@ -1,10 +1,9 @@
 import { useState } from 'react';
-import { m, AnimatePresence } from 'framer-motion';
-import { Monitor, Globe, MousePointer2, Type, Camera, Play, StopCircle, History, Maximize2 } from 'lucide-react';
+import { m } from 'framer-motion';
+import { Monitor, Globe, MousePointer2, Type, Camera, Play, History, Maximize2 } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatusDot } from '@/components/ui/StatusDot';
-import { NeonBadge } from '@/components/ui/NeonBadge';
 import { cn } from '@/lib/utils';
 
 interface BrowserTab {
@@ -20,7 +19,7 @@ export function DeviceAgentPanel() {
   const [tabs] = useState<BrowserTab[]>([
     { id: 't1', title: 'JARVIS Dashboard', url: 'http://localhost:8000', active: true },
   ]);
-  const [actionLog, setActionLog] = useState<string[]>([
+  const [actionLog] = useState<string[]>([
     '[14:23:01] Agent initialized',
     '[14:23:05] Navigated to http://localhost:8000',
     '[14:23:08] Analyzing page structure...',

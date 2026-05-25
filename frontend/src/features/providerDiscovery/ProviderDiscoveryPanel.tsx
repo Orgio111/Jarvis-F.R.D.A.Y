@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { m } from 'framer-motion';
-import { Radio, Activity, Globe, Shield, Zap, AlertTriangle, CheckCircle2, RefreshCw, Server } from 'lucide-react';
+import { Radio, Activity, Shield, Zap, CheckCircle2, RefreshCw, Server } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { StatusDot } from '@/components/ui/StatusDot';
@@ -98,7 +98,7 @@ export function ProviderDiscoveryPanel() {
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono text-jarvis-text">{provider.name}</span>
-                        {provider.free && <NeonBadge color="emerald">Free</NeonBadge>}
+                        {provider.free && <NeonBadge color="green">Free</NeonBadge>}
                       </div>
                       <div className="text-[10px] font-mono text-jarvis-text-dim/40 mt-0.5">
                         {provider.baseUrl}

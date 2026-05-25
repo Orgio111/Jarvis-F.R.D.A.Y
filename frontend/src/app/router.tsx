@@ -27,6 +27,10 @@ const ReasoningPage           = lazy(() => import('@/features/reasoning/Reasonin
 const ProviderDiscoveryPage   = lazy(() => import('@/features/providerDiscovery/ProviderDiscoveryPanel').then(m => ({ default: m.ProviderDiscoveryPanel })));
 const ImageGenerationPage     = lazy(() => import('@/features/imageGeneration/ImageGenerationPanel').then(m => ({ default: m.ImageGenerationPanel })));
 const PromptMutationPage      = lazy(() => import('@/features/promptMutation/PromptMutationPanel').then(m => ({ default: m.PromptMutationPanel })));
+const ExternalApisPage        = lazy(() => import('@/features/externalApis/ApiRegistryPanel').then(m => ({ default: m.ApiRegistryPanel })));
+const SwarmPage                = lazy(() => import('@/features/swarm/SwarmManagerPanel').then(m => ({ default: m.SwarmManagerPanel })));
+const MemoryFabricPage         = lazy(() => import('@/features/memoryFabric/MemoryFabricPanel').then(m => ({ default: m.MemoryFabricPanel })));
+const SelfEvolutionPage        = lazy(() => import('@/features/selfEvolution/SelfEvolutionPanel').then(m => ({ default: m.SelfEvolutionPanel })));
 
 function NotFoundPage() {
   return (
@@ -138,6 +142,34 @@ export function AppRouter() {
       <Route path="/provider-discovery" element={<SuspensePage skeleton="providers"><div className="h-full overflow-auto"><ProviderDiscoveryPage /></div></SuspensePage>} />
       <Route path="/image-generation" element={<SuspensePage skeleton="search"><div className="h-full overflow-auto"><ImageGenerationPage /></div></SuspensePage>} />
       <Route path="/prompt-mutation" element={<SuspensePage skeleton="search"><div className="h-full overflow-auto"><PromptMutationPage /></div></SuspensePage>} />
+      <Route path="/external-apis" element={
+        <SuspensePage skeleton="search">
+          <div className="h-full overflow-auto">
+            <ExternalApisPage />
+          </div>
+        </SuspensePage>
+      } />
+      <Route path="/swarm" element={
+        <SuspensePage skeleton="search">
+          <div className="h-full overflow-auto">
+            <SwarmPage />
+          </div>
+        </SuspensePage>
+      } />
+      <Route path="/memory-fabric" element={
+        <SuspensePage skeleton="search">
+          <div className="h-full overflow-auto">
+            <MemoryFabricPage />
+          </div>
+        </SuspensePage>
+      } />
+      <Route path="/self-evolution" element={
+        <SuspensePage skeleton="search">
+          <div className="h-full overflow-auto">
+            <SelfEvolutionPage />
+          </div>
+        </SuspensePage>
+      } />
       <Route path="/terminal" element={<SuspensePage skeleton="terminal"><TerminalPage /></SuspensePage>} />
       <Route path="/providers" element={
         <SuspensePage skeleton="providers">

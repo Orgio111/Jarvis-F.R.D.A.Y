@@ -1,11 +1,10 @@
 import { useState, useCallback } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { m } from 'framer-motion';
-import { Code2, FileSearch, GitBranch, Layers, Search, RefreshCw, Trash2, Network, BookOpen, AlertTriangle } from 'lucide-react';
+import { Code2, FileSearch, GitBranch, Layers, Search, RefreshCw, Trash2, Network, AlertTriangle } from 'lucide-react';
 import { apiClient } from '@/lib/api/client';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
-import { StatusDot } from '@/components/ui/StatusDot';
 import { NeonBadge } from '@/components/ui/NeonBadge';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
 import { freshness } from '@/lib/query/freshness';
@@ -81,8 +80,13 @@ export function CodeIndexPanel() {
     ...freshness.slowlyChanging,
   });
 
+  interface IndexResponse {
+  filesProcessed: number;
+  chunksIndexed: number;
+}
+
   // ─── Index Mutation ───────────────────────────────────────────────────────
-  const indexMut = useMutation({
+  const indexMut = useMutation<IndexResponse, Error, boolean | undefined>({
     mutationFn: (force?: boolean) =>
       apiClient.post('/code-index/index', { force: force ?? false, maxFiles: 10000 }),
     onSuccess: () => {

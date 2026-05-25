@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "swarm-manager"
+version = "0.1.0"
+description = "Distributed autonomous swarm intelligence — spawn, scale, coordinate, and monitor agent swarms"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["swarm_manager*"]
