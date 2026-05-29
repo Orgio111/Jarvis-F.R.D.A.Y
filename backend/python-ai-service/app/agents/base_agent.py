@@ -1,4 +1,14 @@
-"""BaseAgent — abstract class for all specialized agents."""
+"""BaseAgent — abstract class for all specialized agents.
+
+Provider priority for each _chat() call:
+  1. NVIDIA NIM (if nvidia_nim_api_key set)  ← new
+  2. OpenRouter free models (if openrouter_api_key set)
+  3. ProviderRouter fallback (existing system)
+
+Self-prompting / agentic loop via run_agentic_loop():
+  Executes up to max_iterations of: execute → reflect → re-execute
+  Stops when agent signals done=True or max_iterations reached.
+"""
 from __future__ import annotations
 
 import json
@@ -89,11 +99,22 @@ class BaseAgent(ABC):
         temperature: float = 0.2,
         max_tokens: int = 4096,
     ) -> tuple[str, str]:
-        """Call OpenRouter. Returns (text_content, model_id_used).
+        """Call best available provider. Returns (text_content, model_id_used).
 
-        Falls back to ProviderRouter if OpenRouter key is absent.
+        Priority: NIM (if key set) → OpenRouter free (if key set) → ProviderRouter.
         """
+        from app.agents.nim_model_pool import NimModelPool
         _role = role or self.role
+
+        # 1. Try NIM first
+        if NimModelPool.available() and NimModelPool.get_model(_role, fallback_index):
+            try:
+                return await self._chat_nim(
+                    messages, _role, fallback_index, temperature, max_tokens
+                )
+            except Exception as exc:
+                logger.warning("nim_chat_failed_fallback", error=str(exc))
+
         model = FreeModelPool.get_model(_role, fallback_index)
 
         if not FreeModelPool.openrouter_available() or not model:
@@ -147,6 +168,112 @@ class BaseAgent(ABC):
         result = await provider.chat(messages, max_tokens=max_tokens)
         model = getattr(provider, "model", "unknown")
         return result, model
+
+    # ── NVIDIA NIM chat helper ────────────────────────────────────────────────
+
+    async def _chat_nim(
+        self,
+        messages: list[dict[str, str]],
+        role: Optional[AgentRole] = None,
+        fallback_index: int = 0,
+        temperature: float = 0.2,
+        max_tokens: int = 4096,
+    ) -> tuple[str, str]:
+        """Call NVIDIA NIM endpoint. Returns (text_content, model_id_used)."""
+        from app.agents.nim_model_pool import NimModelPool
+        _role = role or self.role
+        model = NimModelPool.get_model(_role, fallback_index)
+        if not model:
+            raise RuntimeError(f"No NIM model for role={_role} fallback={fallback_index}")
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+
+        async with httpx.AsyncClient(timeout=self.timeout) as client:
+            resp = await client.post(
+                f"{NimModelPool.get_base_url()}/chat/completions",
+                headers=NimModelPool.get_headers(),
+                json=payload,
+            )
+
+        if resp.status_code != 200:
+            if fallback_index == 0:
+                logger.warning(
+                    "nim_primary_failed",
+                    status=resp.status_code,
+                    model=model,
+                )
+                return await self._chat_nim(
+                    messages, _role, fallback_index=1,
+                    temperature=temperature, max_tokens=max_tokens,
+                )
+            raise RuntimeError(
+                f"NIM error {resp.status_code}: {resp.text[:300]}"
+            )
+
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"]
+        actual_model = data.get("model", model)
+        return content, actual_model
+
+    # ── Agentic loop ──────────────────────────────────────────────────────────
+
+    async def run_agentic_loop(
+        self,
+        context: dict[str, Any],
+        max_iterations: int = 5,
+    ) -> AgentResult:
+        """Self-prompting loop: execute → reflect → re-execute until done.
+
+        Agent signals completion by returning result.data["done"] = True.
+        On each iteration the previous result is appended to context["history"]
+        so the agent can build on prior work.
+        """
+        context = dict(context)  # shallow copy — don't mutate caller's dict
+        context.setdefault("history", [])
+        last_result: Optional[AgentResult] = None
+
+        for i in range(max_iterations):
+            result = await self.run(context)
+            last_result = result
+
+            if not result.success:
+                logger.warning(
+                    "agentic_loop_agent_failed",
+                    role=self.role.value,
+                    iteration=i,
+                    error=result.error,
+                )
+                break
+
+            # Agent signals it's finished
+            if result.data.get("done", True):
+                logger.info(
+                    "agentic_loop_done",
+                    role=self.role.value,
+                    iterations=i + 1,
+                )
+                break
+
+            # Append result to history for next iteration
+            context["history"].append(result.to_dict())
+            logger.info(
+                "agentic_loop_continuing",
+                role=self.role.value,
+                iteration=i + 1,
+                remaining=max_iterations - i - 1,
+            )
+
+        return last_result or AgentResult(
+            role=self.role,
+            success=False,
+            content="",
+            error="agentic_loop produced no result",
+        )
 
     # ── JSON extraction helper ────────────────────────────────────────────────
 

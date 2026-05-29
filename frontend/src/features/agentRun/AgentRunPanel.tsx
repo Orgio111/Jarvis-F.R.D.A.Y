@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { DiffBlock } from './DiffBlock';
+import { NimModelBrowser } from './NimModelBrowser';
 import { useAgentRun } from './useAgentRun';
 import type { AgentResultEvent, PlanStep, ReviewIssue } from './agentRunTypes';
 
@@ -58,6 +59,7 @@ export function AgentRunPanel() {
   const [fileTree, setFileTree] = useState('');
   const [maxFiles, setMaxFiles] = useState(10);
   const [showConfig, setShowConfig] = useState(false);
+  const [activeTab, setActiveTab]   = useState<'run' | 'models'>('run');
 
   const handleRun = () => {
     if (!task.trim()) return;
@@ -86,7 +88,7 @@ export function AgentRunPanel() {
             AGENT ORCHESTRATOR
           </h2>
           <p className="text-jarvis-text-dim text-[10px] font-mono">
-            Freebuff-style multi-agent pipeline · free OpenRouter models
+            Freebuff-style multi-agent pipeline · NIM + OpenRouter free models
           </p>
         </div>
 
@@ -108,6 +110,35 @@ export function AgentRunPanel() {
           </m.span>
         )}
       </div>
+
+      {/* ── Tab switcher ───────────────────────────────────────────────────── */}
+      <div className="flex gap-1 shrink-0 bg-jarvis-bg-2/40 border border-jarvis-border/30 rounded-lg p-1 w-fit">
+        {(['run', 'models'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={[
+              'px-3 py-1 rounded text-[11px] font-mono transition-colors',
+              activeTab === tab
+                ? 'bg-jarvis-purple/20 text-jarvis-purple border border-jarvis-purple/30'
+                : 'text-jarvis-text-dim hover:text-jarvis-text-bright',
+            ].join(' ')}
+          >
+            {tab === 'run' ? 'Run' : 'NIM Models'}
+          </button>
+        ))}
+      </div>
+
+      {/* ── NIM Model Browser tab ───────────────────────────────────────────── */}
+      {activeTab === 'models' && (
+        <div className="flex-1 overflow-hidden">
+          <GlassPanel className="p-4 h-full">
+            <NimModelBrowser />
+          </GlassPanel>
+        </div>
+      )}
+
+      {activeTab === 'run' && <div className="contents">
 
       {/* ── Task input ─────────────────────────────────────────────────────── */}
       <GlassPanel className="p-4 shrink-0">
@@ -384,6 +415,8 @@ export function AgentRunPanel() {
           </m.div>
         )}
       </AnimatePresence>
+
+    </div>} {/* end activeTab === 'run' */}
     </div>
   );
 }

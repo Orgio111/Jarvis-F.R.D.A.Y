@@ -94,3 +94,31 @@ async def list_free_models():
             for role in AgentRole
         },
     }
+
+
+@router.get("/nim-models")
+async def list_nim_models():
+    """List all NVIDIA NIM free endpoint models + agent role mapping."""
+    from app.agents.nim_model_pool import NimModelPool, NIM_FREE_MODELS, _NIM_ROLE_MAP
+    from app.agents.free_model_pool import AgentRole
+    return {
+        "nim_available": NimModelPool.available(),
+        "base_url": NimModelPool.get_base_url(),
+        "models": [
+            {
+                "model_id": m.model_id,
+                "slug": m.slug,
+                "name": m.name,
+                "context_length": m.context_length,
+                "use_cases": m.use_cases,
+                "publisher": m.publisher,
+                "free": m.free,
+                "build_url": NimModelPool.nim_build_url(m.slug),
+            }
+            for m in NIM_FREE_MODELS
+        ],
+        "role_map": {
+            role.value: _NIM_ROLE_MAP.get(role, [])
+            for role in AgentRole
+        },
+    }
