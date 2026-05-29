@@ -191,6 +191,7 @@ async def search(
     top_k: int = 5,
     memory_type: str | None = None,
     layer: str = "recall",
+    score_threshold: float = 0.60,
 ) -> list[dict[str, Any]]:
     """
     Semantic nearest-neighbour search.
@@ -198,6 +199,9 @@ async def search(
     Primary:  Qdrant (recall or archival layer)
     Fallback: FAISS flat index
     Degraded: SQLite LIKE
+
+    Only results with cosine similarity >= score_threshold are returned.
+    This reduces token usage in the context window and inference latency.
     """
     # ── Qdrant primary ────────────────────────────────────────────────────────
     if _qdrant is not None and _qdrant._available:
@@ -205,6 +209,9 @@ async def search(
         hits = _qdrant.search(layer, query, top_k=top_k, metadata_filter=meta_filter)
         results = []
         for h in hits:
+            # Skip low-relevance chunks — reduces context bloat
+            if h.score < score_threshold:
+                continue
             db_id = h.metadata.get("db_id")
             if db_id:
                 row = await db.get(MemoryEntry, db_id)
@@ -214,9 +221,11 @@ async def search(
                         .where(MemoryEntry.id == db_id)
                         .values(last_accessed=time.time(), access_count=row.access_count + 1)
                     )
+            # High-relevance hits get more content (up to 400 chars)
+            content_limit = 400 if h.score >= 0.80 else 200
             results.append({
                 "id": h.id,
-                "content": h.content,
+                "content": h.content[:content_limit],
                 "metadata": h.metadata,
                 "type": h.metadata.get("memory_type", "episodic"),
                 "importance": h.metadata.get("importance", 0.5),

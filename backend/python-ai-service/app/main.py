@@ -129,6 +129,25 @@ async def lifespan(app: FastAPI):
         except Exception as exc:
             logger.warning("memory_boot_warning", error=str(exc))
 
+    # ── Semantic cache (Redis exact + Qdrant semantic) ────────────────────────
+    try:
+        from app.cache.semantic_cache import SemanticCache
+        import os as _os
+        _qdrant_host = _os.getenv("QDRANT_HOST", "qdrant")
+        _qdrant_port = int(_os.getenv("QDRANT_PORT", "6333"))
+        sc = SemanticCache.initialize(
+            redis_url=settings.redis_url,
+            qdrant_host=_qdrant_host,
+            qdrant_port=_qdrant_port,
+            threshold=settings.semantic_cache_threshold,
+            ttl_seconds=settings.semantic_cache_ttl_seconds,
+            enabled=settings.semantic_cache_enabled,
+        )
+        await sc.boot()
+        logger.info("semantic_cache_ready")
+    except Exception as exc:
+        logger.warning("semantic_cache_init_warning", error=str(exc))
+
     # ── Scheduler ─────────────────────────────────────────────────────────────
     try:
         from app.scheduler.worker import SchedulerWorker
