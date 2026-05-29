@@ -31,6 +31,7 @@ const ExternalApisPage        = lazy(() => import('@/features/externalApis/ApiRe
 const SwarmPage                = lazy(() => import('@/features/swarm/SwarmManagerPanel').then(m => ({ default: m.SwarmManagerPanel })));
 const MemoryFabricPage         = lazy(() => import('@/features/memoryFabric/MemoryFabricPanel').then(m => ({ default: m.MemoryFabricPanel })));
 const SelfEvolutionPage        = lazy(() => import('@/features/selfEvolution/SelfEvolutionPanel').then(m => ({ default: m.SelfEvolutionPanel })));
+const AgentRunPage             = lazy(() => import('@/features/agentRun/AgentRunPanel').then(m => ({ default: m.AgentRunPanel })));
 
 function NotFoundPage() {
   return (
@@ -168,6 +169,11 @@ export function AppRouter() {
           <div className="h-full overflow-auto">
             <SelfEvolutionPage />
           </div>
+        </SuspensePage>
+      } />
+      <Route path="/agent-run" element={
+        <SuspensePage skeleton="chat">
+          <AgentRunPage />
         </SuspensePage>
       } />
       <Route path="/terminal" element={<SuspensePage skeleton="terminal"><TerminalPage /></SuspensePage>} />

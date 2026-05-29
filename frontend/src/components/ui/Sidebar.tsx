@@ -31,6 +31,7 @@ import {
   Users,
   Layers,
   FlaskConical,
+  GitBranch,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
@@ -63,6 +64,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/swarm',             label: 'Swarm',          icon: Users },
   { path: '/memory-fabric',     label: 'Memory Fab',     icon: Layers },
   { path: '/self-evolution',    label: 'Evolution',     icon: FlaskConical },
+  { path: '/agent-run',         label: 'Agent Run',     icon: GitBranch },
   { path: '/terminal',       label: 'Terminal',      icon: Terminal, featureKey: 'terminal' },
   { path: '/gpu',            label: 'GPU',           icon: Cpu, featureKey: 'gpuMonitor' },
   { path: '/providers',      label: 'Providers',     icon: Cable },
