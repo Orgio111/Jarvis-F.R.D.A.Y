@@ -4,19 +4,22 @@ Dynamic Skill Service
 Skills are LLM-generated Python functions stored in SQLite.
 
 Lifecycle:
-  generate  → LLM writes a Python async function from a natural-language spec
-  validate  → the function is syntax-checked and dry-run with dummy args
-  store     → persisted to DB with version=1, quality_score=0.5
-  execute   → called via a sandboxed exec() with a strict timeout
-  feedback  → quality_score updated from execution results (0.0–1.0)
-  improve   → LLM can regenerate a new version when quality_score < threshold
+  generate     → LLM writes a Python async function from a natural-language spec
+  validate     → the function is syntax-checked and dry-run with dummy args
+  store        → persisted to DB with version=1, quality_score=0.5
+  execute      → called via a sandboxed exec() with a strict timeout
+  feedback     → quality_score updated from execution results (0.0–1.0)
+  crystallize  → successful executions with quality_score > 0.7 auto-saved as reusable patterns
+  improve      → LLM can regenerate a new version when quality_score < threshold
 
-Every skill is an `async def run(**kwargs) -> dict` function.
-The framework calls `run(**params)` and expects a JSON-serialisable dict back.
+Skill Crystallization (GenericAgent-inspired):
+  When a tool execution returns success=True and _assess_quality() > 0.7, the
+  input/output pair is snapshotted as a reusable skill pattern in Qdrant archival.
+  Future similar tasks can hit this cache (find_similar_skill) before re-executing.
 
 Security model:
   • Executions run inside RestrictedExec with __builtins__ limited to a safe set
-  • Network access is blocked unless the skill explicitly imports httpx (monitored)
+  • Network imports (httpx, requests, urllib) allowed only if skill pattern has HTTP in origin
   • CPU timeout enforced via asyncio.wait_for
   • Output truncated to SKILL_OUTPUT_LIMIT bytes
 """
@@ -42,6 +45,11 @@ logger = get_logger(__name__)
 _SKILL_TIMEOUT = 30  # seconds
 _SKILL_OUTPUT_LIMIT = 50_000  # bytes
 _QUALITY_IMPROVE_THRESHOLD = 0.3  # below this → trigger auto-improvement
+_CRYSTALLIZE_THRESHOLD = 0.7      # above this → snapshot as reusable pattern
+_CACHE_HIT_MIN_SIMILARITY = 0.85  # minimum cosine sim to use cached skill pattern
+
+# HTTP imports allowed in skill sandbox (skills that were crystallized with HTTP origin)
+_HTTP_ALLOWED_ORIGINS = {"http_skill", "api_skill", "web_skill"}
 
 
 # ─── Public API ───────────────────────────────────────────────────────────────
@@ -116,7 +124,8 @@ async def execute(
     error_msg = ""
 
     try:
-        output = await _run_sandboxed(row.source_code, params)
+        allow_http = row.origin in _HTTP_ALLOWED_ORIGINS
+        output = await _run_sandboxed(row.source_code, params, allow_http=allow_http)
         success = True
     except asyncio.TimeoutError:
         error_msg = f"Skill timed out after {_SKILL_TIMEOUT}s"
@@ -178,6 +187,145 @@ async def delete_skill(db: AsyncSession, skill_id: str) -> bool:
     await db.delete(row)
     await db.commit()
     return True
+
+
+# ─── Skill Crystallization ────────────────────────────────────────────────────
+
+def assess_quality(result: dict[str, Any]) -> float:
+    """
+    Heuristic quality scorer (0.0–1.0) for a tool/skill execution result.
+
+    Scoring:
+      +0.4  result has non-empty output
+      +0.2  output length > 50 chars (substantial content)
+      +0.2  no error keywords in output
+      +0.2  output looks structured (has newlines or dict-like content)
+    """
+    if not result.get("success", False):
+        return 0.0
+
+    output = result.get("output", "")
+    if isinstance(output, dict):
+        output_str = json.dumps(output)
+    else:
+        output_str = str(output or "")
+
+    score = 0.0
+    if output_str.strip():
+        score += 0.4
+    if len(output_str) > 50:
+        score += 0.2
+    error_keywords = ("error", "exception", "traceback", "failed", "undefined", "null")
+    if not any(kw in output_str.lower() for kw in error_keywords):
+        score += 0.2
+    if "\n" in output_str or "{" in output_str or len(output_str) > 200:
+        score += 0.2
+
+    return round(min(score, 1.0), 3)
+
+
+def _extract_input_pattern(inputs: dict[str, Any]) -> dict[str, Any]:
+    """
+    Generalise input params into a reusable pattern.
+    Strips literal values, keeps key names and rough type hints.
+    """
+    pattern = {}
+    for k, v in inputs.items():
+        if isinstance(v, str):
+            pattern[k] = f"<str len={len(v)}>"
+        elif isinstance(v, (int, float)):
+            pattern[k] = f"<{type(v).__name__}>"
+        elif isinstance(v, list):
+            pattern[k] = f"<list len={len(v)}>"
+        elif isinstance(v, dict):
+            pattern[k] = f"<dict keys={list(v.keys())[:5]}>"
+        else:
+            pattern[k] = f"<{type(v).__name__}>"
+    return pattern
+
+
+async def crystallize(
+    tool_name: str,
+    inputs: dict[str, Any],
+    result: dict[str, Any],
+    score: float,
+) -> str | None:
+    """
+    Snapshot a successful tool execution as a reusable skill pattern in Qdrant archival.
+    Returns the crystallized entry ID or None on failure.
+    """
+    try:
+        from app.memory.qdrant_memory import get_qdrant_memory
+        qm = get_qdrant_memory()
+
+        output = result.get("output", "")
+        if isinstance(output, dict):
+            output_preview = json.dumps(output)[:500]
+        else:
+            output_preview = str(output)[:500]
+
+        skill_entry = {
+            "tool": tool_name,
+            "input_pattern": json.dumps(_extract_input_pattern(inputs)),
+            "output_preview": output_preview,
+            "quality_score": score,
+            "crystallized_at": time.time(),
+            "use_count": 0,
+            "type": "skill",
+            "origin": "crystallized",
+        }
+
+        # The content used for embedding is a natural-language description of what was done
+        embed_content = (
+            f"tool:{tool_name} "
+            f"inputs:{json.dumps(_extract_input_pattern(inputs))} "
+            f"output:{output_preview[:200]}"
+        )
+
+        entry_id = qm.upsert(
+            "archival",
+            embed_content,
+            skill_entry,
+        )
+        logger.info(
+            "skill_crystallized",
+            tool=tool_name,
+            score=score,
+            entry_id=entry_id,
+        )
+        return entry_id
+
+    except Exception as exc:
+        logger.warning("skill_crystallize_failed", tool=tool_name, error=str(exc))
+        return None
+
+
+async def find_similar_skill(task_text: str) -> dict[str, Any] | None:
+    """
+    Search Qdrant archival for a previously crystallised skill matching this task.
+    Returns the skill entry if cosine similarity > _CACHE_HIT_MIN_SIMILARITY, else None.
+    """
+    try:
+        from app.memory.qdrant_memory import get_qdrant_memory
+        qm = get_qdrant_memory()
+
+        hits = qm.search(
+            "archival",
+            task_text,
+            top_k=1,
+            metadata_filter={"type": "skill"},
+        )
+        if hits and hits[0].score >= _CACHE_HIT_MIN_SIMILARITY:
+            return {
+                "id": hits[0].id,
+                "content": hits[0].content,
+                "metadata": hits[0].metadata,
+                "score": hits[0].score,
+            }
+        return None
+    except Exception as exc:
+        logger.warning("skill_find_similar_failed", error=str(exc))
+        return None
 
 
 # ─── LLM code generation ──────────────────────────────────────────────────────
@@ -276,8 +424,18 @@ _SAFE_BUILTINS = {
 }
 
 
-async def _run_sandboxed(source_code: str, params: dict[str, Any]) -> Any:
-    """Execute skill source code inside a restricted namespace with timeout."""
+async def _run_sandboxed(
+    source_code: str,
+    params: dict[str, Any],
+    allow_http: bool = False,
+) -> Any:
+    """
+    Execute skill source code inside a restricted namespace with timeout.
+
+    allow_http=True unlocks httpx/requests/urllib in the sandbox namespace.
+    This is set by the caller when the skill was crystallized from an HTTP-origin pattern.
+    Default: network imports are not available (safe default).
+    """
     namespace: dict[str, Any] = {
         "__builtins__": _SAFE_BUILTINS,
         "__name__": "__skill__",
@@ -294,6 +452,15 @@ async def _run_sandboxed(source_code: str, params: dict[str, Any]) -> Any:
             namespace[mod_name.split(".")[0]] = importlib.import_module(mod_name.split(".")[0])
         except ImportError:
             pass
+
+    # Conditionally allow HTTP libraries
+    if allow_http:
+        for http_mod in ("httpx", "requests", "urllib"):
+            try:
+                import importlib
+                namespace[http_mod] = importlib.import_module(http_mod)
+            except ImportError:
+                pass
 
     exec(compile(source_code, "<skill>", "exec"), namespace)  # noqa: S102
 

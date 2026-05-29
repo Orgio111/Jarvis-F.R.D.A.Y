@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
@@ -118,7 +120,36 @@ async def execute_tool(tool_id: str, request: Request) -> dict:
             content=error("invalid_request", "Request body must be valid JSON", correlation_id=correlation_id),
         )
 
+    # Check skill crystallization cache first — skip re-execution if we have a good match
+    from app.services.skill_service import find_similar_skill
+    cache_query = f"{tool_id}: {body}"
+    cached_skill = await find_similar_skill(cache_query)
+    if cached_skill and cached_skill.get("score", 0) >= 0.85:
+        logger.info("tool_cache_hit", tool_id=tool_id, score=cached_skill["score"])
+        return success(
+            {
+                "toolId": tool_id,
+                "result": {
+                    "output": cached_skill["metadata"].get("output_preview", ""),
+                    "from_cache": True,
+                    "cache_score": cached_skill["score"],
+                    "note": "Result from crystallized skill cache",
+                },
+            },
+            correlation_id,
+        )
+
     result = await _dispatch_tool(tool_id, body)
+
+    # Crystallize if result is high quality
+    if result.get("success", False) or (result.get("output") and not result.get("error")):
+        from app.services.skill_service import assess_quality, crystallize
+        score = assess_quality(result)
+        if score >= 0.7:
+            asyncio.ensure_future(crystallize(tool_id, body, result, score))
+            result["crystallized"] = True
+            result["qualityScore"] = score
+
     return success({"toolId": tool_id, "result": result}, correlation_id)
 
 

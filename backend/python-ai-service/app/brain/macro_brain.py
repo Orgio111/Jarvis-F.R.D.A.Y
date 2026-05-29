@@ -9,6 +9,12 @@ Acts as the CEO of the cognitive architecture:
   - Tracks agent performance via the Agent Reputation system
   - Aggregates results from multiple brains into coherent responses
   - Maintains system-wide optimization and memory prioritization
+
+Hierarchical routing (CrewAI-inspired):
+  - Each strategy step is routed to the best-fit AgentRole (coder/researcher/devops/etc.)
+  - Role selection uses keyword fast-path then embedding cosine similarity fallback
+  - Each role has a distinct system prompt, backstory, and tool allowlist
+  - Tool steps are no longer stubs — they route to the appropriate specialist
 """
 from __future__ import annotations
 
@@ -18,6 +24,7 @@ from typing import Any
 from app.brain.smart_router import SmartRouter, TaskComplexity, TaskType
 from app.brain.strategy_brain import StrategyBrain, TaskGraph
 from app.brain.agent_reputation import AgentReputation
+from app.brain.agent_roles import get_role_for_task, get_role, AgentRole
 from app.brain.sector_brains import (
     BaseSectorBrain,
     SectorBrainResult,
@@ -27,6 +34,21 @@ from app.brain.sector_brains import (
 from app.core.logging import get_logger
 
 logger = get_logger(__name__)
+
+# Module-level embedder for role routing (shared with qdrant_memory if loaded)
+_role_embedder = None
+
+
+def _get_role_embedder():
+    global _role_embedder
+    if _role_embedder is not None:
+        return _role_embedder
+    try:
+        from sentence_transformers import SentenceTransformer  # type: ignore
+        _role_embedder = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+    except Exception:
+        pass
+    return _role_embedder
 
 
 class MacroBrain:
@@ -340,14 +362,17 @@ class MacroBrain:
                     result["success"] = llm_result.get("success", False)
 
             elif step.agent_type == "tool":
-                # Tool execution — currently a placeholder
-                result["result"] = {"output": f"[Tool step: {step.description}]", "success": True}
-                result["success"] = True
+                # Route to best-fit role specialist instead of stub placeholder
+                tool_result = await self._execute_with_role(step.description, full_context)
+                result["result"] = tool_result
+                result["success"] = tool_result.get("success", False)
+                result["roleUsed"] = tool_result.get("roleUsed", "orchestrator")
 
-            else:  # llm or default
-                llm_result = await self._direct_llm(step.description, full_context, 1024)
-                result["result"] = llm_result
-                result["success"] = llm_result.get("success", False)
+            else:  # llm or default — route through role specialist
+                role_result = await self._execute_with_role(step.description, full_context)
+                result["result"] = role_result
+                result["success"] = role_result.get("success", False)
+                result["roleUsed"] = role_result.get("roleUsed", "orchestrator")
 
         except Exception as exc:
             result["result"] = {"error": str(exc), "success": False}
@@ -356,6 +381,85 @@ class MacroBrain:
         elapsed = round((time.perf_counter() - step_start) * 1000, 1)
         result["result"]["elapsedMs"] = elapsed
         return result
+
+    async def _execute_with_role(
+        self,
+        task: str,
+        context: str,
+        max_tokens: int = 1024,
+    ) -> dict[str, Any]:
+        """
+        Route a task to the best-fit AgentRole specialist and execute via LLM.
+
+        Uses keyword fast-path then embedding cosine fallback (see agent_roles.py).
+        The role's backstory + goal are injected as the system prompt.
+        Only the role's allowed tools are surfaced (tool isolation).
+        """
+        role = get_role_for_task(task, embedder=_get_role_embedder())
+        system_prompt = role.to_system_prompt()
+
+        logger.info(
+            "macro_brain_role_routing",
+            task=task[:80],
+            role=role.name,
+            tools=role.tools,
+        )
+
+        try:
+            from app.providers.router import ProviderRouter
+            pr = ProviderRouter.get()
+            provider = pr.get_active_provider()
+            if provider is None:
+                return {
+                    "success": False,
+                    "output": "",
+                    "confidence": 0.0,
+                    "error": "No provider available",
+                    "roleUsed": role.name,
+                }
+
+            user_content = f"Task: {task}\n\nContext: {context[:1000] if context else 'None'}"
+
+            llm_result = await provider.chat(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_content},
+                ],
+                model_id="",
+                max_tokens=max_tokens,
+            )
+
+            content = llm_result.get("choices", [{}])[0].get("message", {}).get("content", "")
+
+            # Track reputation for this role
+            self._reputation.record(
+                agent_id=f"role_{role.name}",
+                success=bool(content),
+                confidence=0.75,
+                latency_ms=0.0,
+                task_type=role.name,
+                agent_type="role_specialist",
+            )
+
+            return {
+                "success": True,
+                "output": content,
+                "confidence": 0.75,
+                "error": None,
+                "roleUsed": role.name,
+                "roleGoal": role.goal,
+                "toolsAvailable": role.tools,
+            }
+
+        except Exception as exc:
+            logger.warning("macro_brain_role_execution_failed", role=role.name, error=str(exc))
+            return {
+                "success": False,
+                "output": "",
+                "confidence": 0.0,
+                "error": str(exc),
+                "roleUsed": role.name,
+            }
 
     def _brain_result_to_dict(self, br: SectorBrainResult) -> dict:
         return {
@@ -372,6 +476,7 @@ class MacroBrain:
 
     def get_status(self) -> dict[str, Any]:
         """Return overall system status including all brain components."""
+        from app.brain.agent_roles import ROLES
         return {
             "macroBrain": {
                 "initialized": True,
@@ -379,6 +484,10 @@ class MacroBrain:
                 "availableSectors": len(SECTOR_BRAIN_REGISTRY),
             },
             "sectorBrains": list_sector_brains(),
+            "agentRoles": {
+                name: {"goal": role.goal, "tools": role.tools}
+                for name, role in ROLES.items()
+            },
             "reputation": {
                 "trackedAgents": len(self._reputation._records) if hasattr(self._reputation, '_records') else 0,
             },

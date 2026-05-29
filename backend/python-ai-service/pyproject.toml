@@ -24,6 +24,8 @@ dependencies = [
     "anyio>=4.4.0",
     # Memory + indexing dependencies (imported at module import time)
     "numpy>=1.26.0",
+    # Qdrant vector DB client (primary memory store — replaces FAISS as default)
+    "qdrant-client>=1.9.0",
     # DB layer (persistent memory, skills, profile, tasks)
     "sqlalchemy>=2.0.30",
     "aiosqlite>=0.20.0",
