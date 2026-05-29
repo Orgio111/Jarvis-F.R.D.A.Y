@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
+from functools import lru_cache
 from typing import Any
 from uuid import uuid4
 
@@ -19,6 +21,28 @@ from app.providers.router import ProviderRouter
 logger = get_logger(__name__)
 router = APIRouter()
 
+# ── Model resolution cache ────────────────────────────────────────────────────
+# Cache resolved model IDs per (mode) for up to 60 s to avoid hitting every
+# provider's /models endpoint on every request.
+_model_cache: dict[str, tuple[str, float]] = {}
+_MODEL_CACHE_TTL = 60.0  # seconds
+
+
+def _get_cached_model(mode: str) -> str | None:
+    entry = _model_cache.get(mode)
+    if entry and (time.monotonic() - entry[1]) < _MODEL_CACHE_TTL:
+        return entry[0]
+    return None
+
+
+def _set_cached_model(mode: str, model_id: str) -> None:
+    _model_cache[mode] = (model_id, time.monotonic())
+
+
+# ── Memory enrichment (with timeout + parallel fetch) ────────────────────────
+
+_MEMORY_TIMEOUT = 1.5  # seconds — skip gracefully if slow
+
 
 async def _enrich_messages_with_memory(
     db,
@@ -26,21 +50,39 @@ async def _enrich_messages_with_memory(
     session_id: str | None,
     user_id: str,
 ) -> list[dict]:
-    """Prepend relevant long-term memories + user profile to the system prompt."""
+    """Prepend relevant long-term memories + user profile to the system prompt.
+
+    Hard capped at _MEMORY_TIMEOUT seconds total — returns original messages on
+    timeout or any error so the chat path is never blocked.
+    Memory search and profile fetch run in parallel.
+    """
     try:
         from app.services import memory_service, profile_service
 
-        # Pull relevant context for the last user message
         user_msg = next(
             (m.get("content", "") for m in reversed(messages) if m.get("role") == "user"),
             "",
         )
 
-        memories: list[dict] = []
-        if user_msg:
-            memories = await memory_service.search(db, query=user_msg, top_k=3)
+        # Parallel fetch with a shared timeout budget
+        async def _search() -> list[dict]:
+            if not user_msg:
+                return []
+            return await memory_service.search(db, query=user_msg, top_k=3)
 
-        profile_summary = await profile_service.context_summary(db, user_id)
+        async def _profile() -> str:
+            return await profile_service.context_summary(db, user_id)
+
+        memories, profile_summary = await asyncio.wait_for(
+            asyncio.gather(_search(), _profile(), return_exceptions=True),
+            timeout=_MEMORY_TIMEOUT,
+        )
+
+        # gather returns exceptions as values when return_exceptions=True
+        if isinstance(memories, BaseException):
+            memories = []
+        if isinstance(profile_summary, BaseException):
+            profile_summary = ""
 
         extra_context_parts: list[str] = []
         if profile_summary:
@@ -55,7 +97,6 @@ async def _enrich_messages_with_memory(
         extra_block = "\n\n".join(extra_context_parts)
         enriched = list(messages)
 
-        # Append to existing system message, or insert one
         if enriched and enriched[0].get("role") == "system":
             enriched[0] = {
                 **enriched[0],
@@ -65,6 +106,9 @@ async def _enrich_messages_with_memory(
             enriched.insert(0, {"role": "system", "content": extra_block})
 
         return enriched
+    except asyncio.TimeoutError:
+        logger.debug("memory_enrichment_timeout", budget_s=_MEMORY_TIMEOUT)
+        return messages
     except Exception as exc:
         logger.debug("memory_enrichment_skipped", reason=str(exc))
         return messages
@@ -85,6 +129,62 @@ async def _post_turn_update(db, user_msg: str, assistant_msg: str, session_id: s
         await profile_service.update_from_conversation(db, user_msg, assistant_msg, user_id)
     except Exception as exc:
         logger.debug("post_turn_update_failed", reason=str(exc))
+
+
+# ── Model resolution helper (with cache) ─────────────────────────────────────
+
+async def _resolve_model_id(
+    mode: str,
+    settings: Any,
+    pr: "ProviderRouter",
+    providers: list[Any],
+) -> str:
+    """Return best model_id for *mode*, using a short-lived in-process cache."""
+
+    # 1. Config override — always wins, no network call needed
+    override_key = f"model_mode_{mode}_model_override"
+    override_model = getattr(settings, override_key, None) or ""
+    if override_model:
+        logger.info("mode_override_used", mode=mode, model=override_model)
+        return override_model
+
+    # 2. Cache hit
+    cached = _get_cached_model(mode)
+    if cached:
+        logger.debug("model_cache_hit", mode=mode, model=cached)
+        return cached
+
+    # 3. Live resolution
+    model_id = ""
+    try:
+        all_models = await pr.get_all_models()
+        overrides = {
+            m: getattr(settings, f"model_mode_{m}_model_override", None) or ""
+            for m in ALL_MODES
+        }
+        resolution = resolve_mode(mode, all_models, overrides=overrides)
+        if resolution:
+            model_id = resolution.modelId
+            logger.info("mode_resolved", mode=mode, model=model_id, provider=resolution.providerId)
+    except Exception as exc:
+        logger.debug("mode_resolution_failed", error=str(exc))
+
+    # 4. Fallback: first chat model from first available provider
+    if not model_id:
+        for p in providers:
+            try:
+                models = await p.list_models()
+                chat_models = [m for m in models if not _is_embedding_model(m["id"])]
+                if chat_models:
+                    model_id = chat_models[0]["id"]
+                    break
+            except Exception:
+                continue
+
+    if model_id:
+        _set_cached_model(mode, model_id)
+
+    return model_id
 
 
 @router.post("/chat/completions")
@@ -114,12 +214,6 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
     if mode not in ALL_MODES:
         mode = "fast"
 
-    # Enrich messages with long-term memory + user profile
-    messages = await _enrich_messages_with_memory(db, messages, session_id, user_id)
-
-    # Inject JARVIS system prompt (always first system message)
-    messages = inject_system_prompt(messages)
-
     try:
         pr = ProviderRouter.get()
         providers = pr.get_providers_in_priority_order()
@@ -129,41 +223,23 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
         logger.error("chat_provider_lookup_failed", error=str(exc))
         return _json_error(503, "provider_unavailable", str(exc), correlation_id)
 
-    # Resolve model ID — explicit model takes priority, otherwise use mode
+    # Run memory enrichment + model resolution in parallel — both are network-bound
+    enrich_task = asyncio.create_task(
+        _enrich_messages_with_memory(db, messages, session_id, user_id)
+    )
+    resolve_task: asyncio.Task | None = None
     if not model_id:
-        # 1. Check for config override first (most reliable — works when
-        #    provider model listing doesn't include the desired model)
-        override_key = f"model_mode_{mode}_model_override"
-        override_model = getattr(settings, override_key, None) or ""
-        if override_model:
-            model_id = override_model
-            logger.info("mode_override_used", mode=mode, model=model_id)
-        else:
-            # 2. Try mode resolution via keyword/group matching
-            try:
-                all_models = await pr.get_all_models()
-                overrides = {
-                    m: getattr(settings, f"model_mode_{m}_model_override", None) or ""
-                    for m in ALL_MODES
-                }
-                resolution = resolve_mode(mode, all_models, overrides=overrides)
-                if resolution:
-                    model_id = resolution.modelId
-                    logger.info("mode_resolved", mode=mode, model=model_id, provider=resolution.providerId)
-            except Exception as exc:
-                logger.debug("mode_resolution_failed", error=str(exc))
+        resolve_task = asyncio.create_task(
+            _resolve_model_id(mode, settings, pr, providers)
+        )
 
-    # Fallback: pick first chat model from first available provider
-    if not model_id:
-        for p in providers:
-            try:
-                models = await p.list_models()
-                chat_models = [m for m in models if not _is_embedding_model(m["id"])]
-                if chat_models:
-                    model_id = chat_models[0]["id"]
-                    break
-            except Exception:
-                continue
+    messages = await enrich_task
+
+    if resolve_task is not None:
+        model_id = await resolve_task
+
+    # Inject JARVIS system prompt (always first system message)
+    messages = inject_system_prompt(messages)
 
     if not model_id:
         return _json_error(400, "model_required", "No model specified and no default model available", correlation_id)
@@ -191,17 +267,13 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
     for provider in providers:
         current_model_id = model_id
         try:
-            # If we're retrying with a different provider after an override model
-            # failed on the previous provider, re-resolve the model using only
-            # the fallback provider's own model list.  This avoids picking the
-            # same override model that just failed on the previous provider.
             if last_exc is not None and override_was_used:
                 try:
                     provider_models = await provider.list_models()
                     resolution = resolve_mode(mode, provider_models, overrides={})
                     if resolution:
                         current_model_id = resolution.modelId
-                        override_was_used = False  # Don't re-resolve again
+                        override_was_used = False
                         logger.info(
                             "model_re_resolved_for_fallback",
                             provider=provider.provider_id,
@@ -209,7 +281,7 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
                             model=current_model_id,
                         )
                 except Exception:
-                    pass  # Keep using original model_id
+                    pass
 
             result = await provider.chat(messages, current_model_id, max_tokens)
             content = _extract_content(result)
@@ -250,17 +322,31 @@ async def _stream_events(
 ) -> Any:
     message_id = f"msg_{uuid4()}"
 
-    # Try providers in order; once streaming starts we commit to that provider.
+    # Try providers in order.  We probe the first token to detect early failures
+    # so we can fall back to the next provider before yielding STREAM_START.
     used_provider: Any = None
     stream_iter: Any = None
+    first_token: str | None = None
     last_err: str = ""
 
     for provider in providers:
         try:
-            # Kick off the async generator — failures surface on first iteration.
-            stream_iter = provider.stream_chat(messages, model_id, max_tokens)
+            candidate_iter = provider.stream_chat(messages, model_id, max_tokens)
+            # Eagerly consume first chunk to surface connection/auth errors now
+            try:
+                first_token = await asyncio.wait_for(
+                    candidate_iter.__anext__(),
+                    timeout=10.0,
+                )
+            except StopAsyncIteration:
+                first_token = None
+            stream_iter = candidate_iter
             used_provider = provider
             break
+        except asyncio.TimeoutError:
+            logger.warning("chat_stream_first_token_timeout", provider=provider.provider_id)
+            last_err = "first-token timeout"
+            continue
         except Exception as exc:
             logger.warning("chat_stream_provider_failed_init", provider=provider.provider_id, error=str(exc))
             last_err = str(exc)
@@ -282,24 +368,37 @@ async def _stream_events(
     ))
 
     full_content: list[str] = []
+
+    def _emit_chunk(raw_chunk: str) -> str | None:
+        """Parse a raw SSE chunk and return a CHAT_STREAM_TOKEN SSE string, or None."""
+        try:
+            chunk_data = json.loads(raw_chunk)
+        except Exception:
+            return None
+        choices = chunk_data.get("choices", [{}])
+        if not choices:
+            return None
+        token = choices[0].get("delta", {}).get("content", "")
+        if not token:
+            return None
+        full_content.append(token)
+        return _sse(new_event(
+            "CHAT_STREAM_TOKEN",
+            {"messageId": message_id, "token": token},
+            correlation_id, req_id, session_id,
+        ))
+
     try:
+        # Emit the first token we already fetched
+        if first_token is not None:
+            evt = _emit_chunk(first_token)
+            if evt:
+                yield evt
+
         async for raw_chunk in stream_iter:
-            try:
-                chunk_data = json.loads(raw_chunk)
-            except Exception:
-                continue
-            choices = chunk_data.get("choices", [{}])
-            if not choices:
-                continue
-            delta = choices[0].get("delta", {})
-            token = delta.get("content", "")
-            if token:
-                full_content.append(token)
-                yield _sse(new_event(
-                    "CHAT_STREAM_TOKEN",
-                    {"messageId": message_id, "token": token},
-                    correlation_id, req_id, session_id,
-                ))
+            evt = _emit_chunk(raw_chunk)
+            if evt:
+                yield evt
     except Exception as exc:
         logger.error("chat_stream_error", error=str(exc))
         yield _sse(new_event(
