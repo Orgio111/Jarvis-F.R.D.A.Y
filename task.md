@@ -1,50 +1,80 @@
-# Jarvis Latency Optimization — Full Production Architecture
+# Jarvis — Freebuff/Codebuff Architecture Implementation
 
-## What we're building
-Real perceived latency reduction via system design (not just faster API calls).
+## Goal
+Codebuff/Freebuff multi-agent architecture Jarvis-д нэмэх.
+Ad болон төлбөртэй model ХЭРЭГГҮЙ.
 
-## Components
+## What exists already
+- MacroBrain (orchestrator) ✅
+- SmartRouter (complexity routing) ✅
+- SectorBrains (coding/devops/research/etc) ✅
+- agent_service.py (plan→act→reflect loop) ✅
+- code_indexing/ (file crawler, chunker, embedder) ✅
+- execution.py (Python/shell sandbox) ✅
+- StrategyBrain (task graph) ✅
+- OpenRouter provider (DeepSeek, Kimi, Gemini Flash — FREE tier models) ✅
 
-### 1. Redis Semantic Cache [NEW FILE]
-- `app/cache/semantic_cache.py`
-- Exact match (hash) + semantic similarity (Qdrant cosine)
-- TTL-based expiry, threshold=0.95
-- Cache key: sha256(sorted messages)
-- Semantic key: embed(last user msg) → Qdrant "semantic_cache" collection
+## What's MISSING (Freebuff gap)
+1. **Specialized sub-agents** — file_picker, planner, editor, reviewer, terminal
+   Currently agent_service.py = single loop, no agent specialization
+2. **Parallel agent execution** — steps run sequentially, not parallel
+3. **Free model routing** — no explicit free model pool (DeepSeek-free, Gemini-flash-lite, Kimi-free)
+4. **Codebase context** — code_indexing exists but NOT wired to agent pipeline
+5. **Terminal agent** — execution.py exists but not a real agent with feedback loop
+6. **Context compression** — no conversation summary / context pruning between iterations
 
-### 2. Smart Router integration in chat.py [EDIT]
-- Before memory enrich: run SmartRouter.analyze_task() → get mode
-- Replace body.get("mode") default with SmartRouter result
-- Select fast/smart/deep/coding model based on complexity
+## Implementation Plan
 
-### 3. RAG context pruning [EDIT memory_service.py]
-- top_k=3 → top_k=5 with score threshold (only >0.7 similarity)
-- Truncate each chunk: 200 → 400 chars but only if score > 0.8
-- Hybrid search: keyword pre-filter + semantic
+### File 1: app/agents/base_agent.py [NEW]
+BaseAgent class — shared interface for all sub-agents
 
-### 4. Cache check in chat pipeline [EDIT chat.py]
-- After model resolve: check cache → return instantly if hit
-- After response: store to cache async
+### File 2: app/agents/specialized/file_picker.py [NEW]
+FilePickerAgent — tree-sitter scan + vector search → relevant files list
 
-### 5. Streaming already done (prev session)
+### File 3: app/agents/specialized/planner.py [NEW]
+PlannerAgent — decomposes goal into typed steps with agent assignment
 
-### 6. Response shaping [EDIT chat.py]
-- For stream: emit "thinking..." STREAM_META event instantly
-  so client can show skeleton
+### File 4: app/agents/specialized/editor.py [NEW]
+EditorAgent — writes/patches code, uses coding model (DeepSeek-free)
 
-### 7. KV prefix cache hint [EDIT providers]
-- Add system prompt caching header for Anthropic
-- OpenAI: no change needed (auto)
+### File 5: app/agents/specialized/reviewer.py [NEW]
+ReviewerAgent — reviews code output, finds bugs/issues
 
-## Priority order
-1. Semantic cache (biggest win — 0ms on repeat queries)
-2. Smart router in chat (small→big split)
-3. RAG pruning (less tokens = faster inference)
-4. Response shaping (UX)
-5. Anthropic prefix cache
+### File 6: app/agents/specialized/terminal.py [NEW]
+TerminalAgent — executes shell/python, parses output, reports result
 
-## Done
-- [x] Memory timeout + parallel gather (1.5s)
-- [x] Model resolution LRU cache (60s)
-- [x] Stream first-token probe
-- [x] Provider timeout 45→30s
+### File 7: app/agents/orchestrator.py [NEW]
+Orchestrator — parallel agent dispatch, aggregates results
+Uses Freebuff pattern: fast parallel map, then reduce
+
+### File 8: app/agents/free_model_pool.py [NEW]
+FreeModelPool — explicitly maps task types to free-tier models
+  file_scan → gemini/gemini-flash-1.5-8b (free)
+  coding → deepseek/deepseek-chat-v3-0324:free (free)
+  reasoning → deepseek/deepseek-r1:free (free)
+  fast/routing → meta-llama/llama-3.2-3b-instruct:free (free)
+
+### File 9: app/agents/context_compressor.py [NEW]
+ContextCompressor — summarize old turns, prune irrelevant context
+max_context_tokens=4000, compress older than 3 turns
+
+### File 10: app/routers/orchestrate.py [NEW]
+/orchestrate/run endpoint — entry point for full multi-agent pipeline
+
+### File 11: main.py [EDIT]
+Register /orchestrate router
+
+## Free models on OpenRouter (no key cost)
+- deepseek/deepseek-chat-v3-0324:free
+- deepseek/deepseek-r1:free
+- google/gemini-flash-1.5-8b (very cheap / free quota)
+- meta-llama/llama-3.2-3b-instruct:free
+- microsoft/phi-3-mini-128k-instruct:free
+- qwen/qwen-2.5-7b-instruct:free
+
+## Done (previous sessions)
+- [x] Semantic cache (Redis + Qdrant)
+- [x] Smart router in chat.py
+- [x] Memory timeout + parallel
+- [x] Model resolution cache
+- [x] RAG score threshold pruning

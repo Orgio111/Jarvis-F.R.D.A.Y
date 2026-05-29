@@ -30,6 +30,7 @@ from app.reasoning.router import router as reasoning_router
 from app.provider_discovery.router import router as provider_discovery_router
 from app.image_generation.router import router as image_generation_router
 from app.prompt_mutation.router import router as prompt_mutation_router
+from app.routers.orchestrate import router as orchestrate_router
 
 # New system integrations
 from app.routers import external_apis as external_apis_router
@@ -328,3 +329,6 @@ app.include_router(memory_fabric_router.router)
 
 # Self-Evolution Engine (Phase 9 — v3 Self-Improvement)
 app.include_router(self_evolution_router.router)
+
+# Multi-Agent Orchestration (Phase 10 — free OpenRouter models)
+app.include_router(orchestrate_router)
