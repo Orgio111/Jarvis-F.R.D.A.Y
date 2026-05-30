@@ -126,13 +126,13 @@ NIM → Cerebras → Groq → OpenRouter → Google AI Studio → Mistral → Pr
 - [ ] Update provider priority in _chat() / ProviderRouter
 
 ### Phase 2 — Architecture improvements
-- [ ] SpecAgent (new file: agents/specialized/spec.py)
-- [ ] Insert SpecAgent as Step 0 in Orchestrator
-- [ ] Competitive swarm mode for EditorAgent steps
-- [ ] AgentHooks protocol
+- [x] SpecAgent (new file: agents/specialized/spec.py)
+- [x] Insert SpecAgent as Step 0 in Orchestrator
+- [x] Competitive swarm mode for EditorAgent steps
+- [x] AgentHooks protocol (pre_step / post_step on Orchestrator)
 
 ### Phase 3 — Infrastructure
-- [ ] graphify integration for FilePickerAgent
+- [x] graphify integration for FilePickerAgent (AST-based CodeGraph + BFS expansion)
 - [ ] Prometheus metrics endpoint
 - [ ] Redis Streams event bus
 
@@ -185,21 +185,6 @@ NIM → Cerebras → Groq → OpenRouter → Google AI Studio → Mistral → Pr
 
 ## REMAINING (not yet implemented)
 
-### HIGH
-- [ ] Competitive swarm mode for EditorAgent
-  - Run 2 EditorAgents in parallel on same step (asyncio.gather)
-  - ReviewerAgent scores both, picks winner
-  - Gated behind config flag `JARVIS_SWARM_MODE=true`
-
-### MEDIUM
-- [ ] graphify-style knowledge graph for file picking
-  - Parse imports/exports to build a dependency graph
-  - FilePickerAgent uses graph traversal instead of pure LLM guess
-  - Inspired by: graphify (safishamsi), cocoindex-code (AST semantic search)
-- [ ] Hooks system (ruflo/claude-flow pattern)
-  - `pre_step` / `post_step` hooks in Orchestrator
-  - Enables: logging, tracing, custom validators without modifying core
-
 ### LOW
 - [ ] Redis Streams for real-time SSE (replace in-memory async generator)
   - Enables horizontal scaling (multiple workers, same stream)
@@ -209,3 +194,24 @@ NIM → Cerebras → Groq → OpenRouter → Google AI Studio → Mistral → Pr
 - [ ] MiroFish swarm simulation mode
   - Multiple agents with different "personalities" argue about the plan
   - Best consensus plan wins — for high-stakes refactors only
+
+---
+
+## Round 3 — Completed
+
+#### 5. Competitive swarm mode (`e204906`) ✅
+- `_execute_step_swarm()` runs 2 EditorAgents in parallel (temp 0.10 vs 0.35)
+- `ReviewerAgent.score_edits()` picks winner by quality score
+- Gated behind `JARVIS_SWARM_MODE=true` env flag (off by default)
+
+#### 6. Graph-based file picker (`0b056aa`) ✅
+- `code_graph.py` — AST import graph builder (Python + JS/TS, stdlib only)
+- `file_picker.py` — two-phase: LLM seeds → `CodeGraph.reachable(seeds, hops=2)` BFS expansion
+- `most_connected()` ranks by hub score; best-effort (failures silently skipped)
+- `repo_root` wired into Orchestrator's FilePicker call
+
+#### 7. Hooks system (`988ea01`) ✅
+- `pre_step` / `post_step` hooks on Orchestrator instance
+- Both sync and async callables supported
+- Hook errors are swallowed (won't crash pipeline)
+- Usage: `orch.add_hook("pre_step", fn)` / `orch.add_hook("post_step", fn)`
