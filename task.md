@@ -215,3 +215,170 @@ NIM → Cerebras → Groq → OpenRouter → Google AI Studio → Mistral → Pr
 - Both sync and async callables supported
 - Hook errors are swallowed (won't crash pipeline)
 - Usage: `orch.add_hook("pre_step", fn)` / `orch.add_hook("post_step", fn)`
+
+---
+
+## Research Round 4 — AI Agent + Skills System (30 repos)
+
+### Repos analyzed
+LangGraph, AutoGen, CrewAI, MetaGPT, OpenDevin, Open-Interpreter, AutoGPT, BabyAGI
+
+---
+
+### KEY FINDINGS — steal these patterns
+
+#### 1. LangGraph — StateGraph / Checkpointing ⭐
+```python
+# Pattern: typed state dict + nodes + conditional edges
+class State(TypedDict):
+    messages: Annotated[Sequence[BaseMessage], add_messages]
+
+workflow = StateGraph(State)
+workflow.add_node("call_model", call_model)
+workflow.add_conditional_edges("call_model", should_continue)
+graph = workflow.compile()
+```
+- **What Jarvis lacks**: typed State object — our Orchestrator passes raw dicts
+- **Steal**: wrap pipeline state in a TypedDict; makes debugging/serialization trivial
+- **Also**: LangGraph supports **durable execution** — resume from checkpoint after crash
+- **Also**: `RetryPolicy` + `CachePolicy` per node — aligns with our retry work
+
+#### 2. AutoGen — `on_messages_stream` + cancellation token ⭐
+```python
+async def on_messages_stream(
+    self, messages, cancellation_token: CancellationToken
+) -> AsyncGenerator[...]:
+```
+- **What Jarvis lacks**: no CancellationToken — user can't abort mid-run
+- **Steal**: pass cancellation event through Orchestrator → agents
+- **Also**: `AssistantAgentConfig` — declarative agent config via Pydantic, serializable
+
+#### 3. MetaGPT — ActionNode (structured LLM output) ⭐⭐
+- Every action has typed input/output schema in Pydantic
+- LLM is asked to fill a structured template — reduces JSON parse errors
+- `action_graph.py` — actions form a DAG (like our steps, but first-class)
+- `Planner` in role decides WHICH action to take next (vs our hardcoded pipeline)
+- **Priority**: HIGH — our agents parse LLM output with regex; ActionNode style = more reliable
+
+#### 4. OpenDevin — Skill-as-markdown with YAML frontmatter ⭐
+```yaml
+---
+name: fix_bug
+triggers: ["/fix", "fix bug", "debug"]
+type: task
+---
+# Fix Bug Skill
+...instructions for the agent...
+```
+- Skills stored as `.md` files with YAML frontmatter — human-readable, git-diffable
+- `KeywordTrigger` vs `TaskTrigger` — keyword = chat command, task = slash command
+- Skill loader is a thin proxy → agent-server `/api/skills` (decoupled from main app)
+- **Jarvis has**: `skill_service.py` with DB-stored LLM-generated skills
+- **Gap**: no trigger system — skills are never auto-invoked based on user message
+- **Steal**: add `triggers: list[str]` to Skill model + IntentRouter matches triggers → dispatches skill
+
+#### 5. BabyAGI `functionz` — Function Registry with DB persistence ⭐⭐
+```python
+@python_func.register_function(
+    metadata={"description": "..."},
+    imports=["httpx"],
+    dependencies=["other_fn"],
+    triggers=["search the web"],
+    key_dependencies=["OPENAI_API_KEY"]
+)
+async def web_search(query: str) -> dict:
+    ...
+```
+- Functions stored in DB with: code, metadata, imports, dependencies, triggers, versions
+- **Dependency graph** between functions (like our CodeGraph but for skills!)
+- **Triggers**: when another function is added/updated → auto-fires trigger
+- **key_dependencies**: declares which API keys a function needs
+- `function_added_or_updated` hook — reactive to registry changes
+- **Jarvis has**: `skill_service.py` — very similar! But missing: dependency graph, triggers, reactive hooks
+- **Steal**: add `dependencies: list[str]` + `triggers: list[str]` to Skill model
+
+#### 6. AutoGPT — Tool output size management ⭐
+```python
+_LARGE_OUTPUT_THRESHOLD = 80_000  # persist to workspace if >80KB
+_PREVIEW_CHARS = 95_000           # middle-out preview for LLM context
+```
+- Large tool outputs saved to file; LLM gets a preview + "retrieve full output" instruction
+- Prevents context overflow from big tool results
+- **Jarvis has**: `SKILL_OUTPUT_LIMIT = 50_000` truncation — but no middle-out preview
+- **Steal**: middle-out preview pattern for large skill outputs
+
+#### 7. CrewAI — Role-based agent with `goal` + `backstory` ⭐
+- Each agent has: role, goal, backstory, tools list, memory flag
+- Crew = team of agents with a `process` (sequential or hierarchical)
+- Task has `expected_output` field → reviewer knows what "done" means
+- **Jarvis gap**: agents have no explicit goal/backstory — harder to tune behavior
+
+---
+
+### COMMON PATTERN ACROSS ALL REPOS
+
+```
+User Input
+    ↓
+Intent Router / Skill Selector
+    ↓
+Skill Registry (trigger match → pick skill/tool)
+    ↓
+Agent Executor (LLM with structured output)
+    ↓
+Memory (vector DB + state checkpoint)
+    ↓
+Tool Execution Layer (sandboxed)
+    ↓
+Feedback / Quality loop (retry + crystallize)
+```
+
+**Jarvis covers**: Agent Executor ✅, Memory ✅, Tool sandbox ✅, Retry ✅, Crystallize ✅
+**Jarvis missing**: Intent Router ❌, Trigger-based skill dispatch ❌, State checkpoint ❌, CancellationToken ❌
+
+---
+
+## IMPLEMENTATION CHECKLIST — Round 4
+
+### HIGH priority
+- [ ] **Trigger-based skill dispatch** (`IntentRouter`)
+  - Add `triggers: list[str]` to Skill DB model
+  - `IntentRouter.match(user_message)` → returns matching skill or None
+  - Hook into chat pipeline: before LLM call, check IntentRouter
+  - Pattern: OpenDevin KeywordTrigger + BabyAGI functionz triggers
+
+- [ ] **Structured agent output** (ActionNode-style)
+  - Each agent defines a Pydantic output schema
+  - Prompt asks LLM to fill the schema
+  - Parse with `model.model_validate_json()` instead of regex
+  - Pattern: MetaGPT ActionNode
+
+### MEDIUM priority
+- [ ] **CancellationToken in Orchestrator**
+  - `asyncio.Event` passed top-down through pipeline
+  - Agents check `cancel_event.is_set()` before each LLM call
+  - Pattern: AutoGen CancellationToken
+
+- [ ] **Typed State in Orchestrator**
+  - Replace `dict` passing with a `PipelineState` TypedDict
+  - Serializable → enables resume-on-crash in future
+  - Pattern: LangGraph StateGraph
+
+- [ ] **Middle-out preview for large skill outputs**
+  - If output > 40KB: save to file, return summary + retrieval instructions to LLM
+  - Pattern: AutoGPT tool output management
+
+- [ ] **Skill dependency graph**
+  - `dependencies: list[str]` on Skill model (already have CodeGraph — reuse!)
+  - When skill A is updated → auto-notify skills that depend on A
+  - Pattern: BabyAGI functionz dependency + trigger system
+
+### LOW priority
+- [ ] Role + goal + backstory on BaseAgent
+  - Makes agent behavior tunable without touching code
+  - Pattern: CrewAI role-based agents
+
+- [ ] LangGraph durable execution (checkpoint/resume)
+  - Serialize PipelineState to DB after each step
+  - Resume if process dies mid-run
+  - Only needed for very long tasks
