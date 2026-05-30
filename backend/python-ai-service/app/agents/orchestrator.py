@@ -1,16 +1,23 @@
 """Orchestrator — drives the full multi-agent pipeline for a coding task.
 
 Pipeline:
-  0. SpecAgent       — write spec/PRD with acceptance criteria (new)
-  1. FilePickerAgent — find relevant files
+  0. SpecAgent       — write spec/PRD with acceptance criteria
+  1. FilePickerAgent — find relevant files (LLM seeds + AST graph expansion)
   2. PlannerAgent    — decompose into steps (with dependency graph)
   3. Execute steps:
      - Group steps with no unmet depends_on → asyncio.gather() them in parallel
      - Sequential for dependent steps
      - Each step dispatched to the correct specialized agent
-     - Retry-on-failure: up to _STEP_MAX_RETRIES before marking failed (new)
+     - Retry-on-failure: up to _STEP_MAX_RETRIES before marking failed
+     - Swarm mode: 2 EditorAgents compete, ReviewerAgent picks winner
   4. ReviewerAgent   — review all edits from editor steps
   5. Yield SSE events throughout
+
+Hooks (pre_step / post_step):
+    orch = Orchestrator(repo_root=...)
+    orch.add_hook("pre_step",  lambda step: print("starting", step["id"]))
+    orch.add_hook("post_step", lambda step, result, err: ...)
+    async for event in orch.run(...): ...
 
 Context compression is applied before passing history to Planner and per-step agents.
 
@@ -21,9 +28,10 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import os
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Callable
 
 from app.agents.context_compressor import compress
 from app.agents.free_model_pool import AgentRole
@@ -66,10 +74,44 @@ async def _load_file(path: str, repo_root: str, max_bytes: int = 8000) -> str:
 
 
 class Orchestrator:
-    """Stateless — instantiate per request."""
+    """Stateless — instantiate per request.
+
+    Hooks
+    -----
+    Register callables with ``add_hook(event, fn)`` where event is one of:
+
+    * ``"pre_step"``  — called before the first attempt of a step.
+                        Signature: ``fn(step: dict) -> None``
+    * ``"post_step"`` — called after a step completes (success or final failure).
+                        Signature: ``fn(step: dict, result, error: Exception|None) -> None``
+                        ``result`` is the AgentResult on success, else None.
+
+    Both sync and async callables are supported.
+    Hooks are stored per-instance so they don't bleed between requests.
+    """
+
+    # Event names accepted by add_hook / _run_hooks
+    _HOOK_EVENTS = frozenset({"pre_step", "post_step"})
 
     def __init__(self, repo_root: str = "."):
         self.repo_root = repo_root
+        self._hooks: dict[str, list[Callable]] = {e: [] for e in self._HOOK_EVENTS}
+
+    def add_hook(self, event: str, fn: Callable) -> None:
+        """Register a hook.  Raises ValueError for unknown events."""
+        if event not in self._HOOK_EVENTS:
+            raise ValueError(f"Unknown hook event {event!r}. Valid: {sorted(self._HOOK_EVENTS)}")
+        self._hooks[event].append(fn)
+
+    async def _run_hooks(self, event: str, *args: Any) -> None:
+        """Call all hooks registered for *event*, tolerating errors."""
+        for fn in self._hooks.get(event, []):
+            try:
+                result = fn(*args)
+                if inspect.isawaitable(result):
+                    await result
+            except Exception as exc:  # hooks must not crash the pipeline
+                logger.warning("hook_error", event=event, hook=getattr(fn, "__name__", repr(fn)), error=str(exc))
 
     async def run(
         self,
@@ -339,6 +381,8 @@ class Orchestrator:
             and step.get("agent", "editor") == "editor"
         )
 
+        await self._run_hooks("pre_step", step)
+
         delay = _RETRY_DELAY_S
         last_exc: Exception | None = None
         for attempt in range(1, _STEP_MAX_RETRIES + 1):
@@ -352,6 +396,7 @@ class Orchestrator:
                         step, task, file_contents, history, accumulated_edits
                     )
                 if result.success:
+                    await self._run_hooks("post_step", step, result, None)
                     return result
                 # Treat agent-level failures as retryable
                 last_exc = RuntimeError(result.error or "agent returned success=False")
@@ -369,7 +414,8 @@ class Orchestrator:
                 await asyncio.sleep(delay)
                 delay *= 2  # exponential backoff
 
-        # All retries exhausted — re-raise so caller emits step_error
+        # All retries exhausted — fire post_step with error then re-raise
+        await self._run_hooks("post_step", step, None, last_exc)
         raise last_exc or RuntimeError(f"Step {step['id']} failed after {_STEP_MAX_RETRIES} attempts")
 
     async def _execute_step(
