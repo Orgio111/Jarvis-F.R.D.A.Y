@@ -33,6 +33,11 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
+    # ─── Free provider keys (new — all optional) ─────────────────────────────
+    cerebras_api_key: str = ""       # https://cloud.cerebras.ai — 1M tokens/day free
+    groq_api_key: str = ""           # https://console.groq.com  — 14400 req/day free
+    google_ai_api_key: str = ""      # https://aistudio.google.com — 500 req/day free
+
     # ─── Provider routing ─────────────────────────────────────────────────────
     ai_provider_primary: str = "nvidia_nim"
     ai_provider_fallback: str = "openrouter"

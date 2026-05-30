@@ -101,12 +101,13 @@ class BaseAgent(ABC):
     ) -> tuple[str, str]:
         """Call best available provider. Returns (text_content, model_id_used).
 
-        Priority: NIM (if key set) → OpenRouter free (if key set) → ProviderRouter.
+        Priority: NIM → Cerebras → Groq → Google AI Studio → OpenRouter → ProviderRouter.
+        fallback_index is kept for backward compat but chain handles fallback internally.
         """
         from app.agents.nim_model_pool import NimModelPool
         _role = role or self.role
 
-        # 1. Try NIM first
+        # 1. Try NIM first (highest quality, free tier)
         if NimModelPool.available() and NimModelPool.get_model(_role, fallback_index):
             try:
                 return await self._chat_nim(
@@ -115,45 +116,49 @@ class BaseAgent(ABC):
             except Exception as exc:
                 logger.warning("nim_chat_failed_fallback", error=str(exc))
 
-        model = FreeModelPool.get_model(_role, fallback_index)
-
-        if not FreeModelPool.openrouter_available() or not model:
-            return await self._chat_via_provider(messages, max_tokens)
-
-        payload = {
-            "model": model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-
-        async with httpx.AsyncClient(timeout=self.timeout) as client:
-            resp = await client.post(
-                f"{FreeModelPool.get_base_url()}/chat/completions",
-                headers=FreeModelPool.get_headers(),
-                json=payload,
-            )
-
-        if resp.status_code != 200:
-            # Try secondary model once
-            if fallback_index == 0:
+        # 2. Walk the free provider chain: Cerebras → Groq → Google → OpenRouter
+        chain = FreeModelPool.provider_chain(_role)
+        for provider_cfg in chain:
+            try:
+                payload = {
+                    "model": provider_cfg["model"],
+                    "messages": messages,
+                    "temperature": temperature,
+                    "max_tokens": max_tokens,
+                }
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    resp = await client.post(
+                        f"{provider_cfg['base_url']}/chat/completions",
+                        headers=provider_cfg["headers"],
+                        json=payload,
+                    )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    content = data["choices"][0]["message"]["content"]
+                    actual_model = data.get("model", provider_cfg["model"])
+                    logger.info(
+                        "chat_provider_success",
+                        provider=provider_cfg["provider"],
+                        model=actual_model,
+                    )
+                    return content, actual_model
+                else:
+                    logger.warning(
+                        "chat_provider_failed",
+                        provider=provider_cfg["provider"],
+                        model=provider_cfg["model"],
+                        status=resp.status_code,
+                        body=resp.text[:200],
+                    )
+            except Exception as exc:
                 logger.warning(
-                    "openrouter_primary_failed",
-                    status=resp.status_code,
-                    model=model,
+                    "chat_provider_exception",
+                    provider=provider_cfg["provider"],
+                    error=str(exc),
                 )
-                return await self._chat(
-                    messages, _role, fallback_index=1,
-                    temperature=temperature, max_tokens=max_tokens,
-                )
-            raise RuntimeError(
-                f"OpenRouter error {resp.status_code}: {resp.text[:300]}"
-            )
 
-        data = resp.json()
-        content = data["choices"][0]["message"]["content"]
-        actual_model = data.get("model", model)
-        return content, actual_model
+        # 3. Final fallback: existing ProviderRouter
+        return await self._chat_via_provider(messages, max_tokens)
 
     async def _chat_via_provider(
         self,

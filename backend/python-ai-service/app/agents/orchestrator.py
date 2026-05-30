@@ -1,13 +1,15 @@
 """Orchestrator — drives the full multi-agent pipeline for a coding task.
 
 Pipeline:
-  1. FilePickerAgent  — find relevant files
-  2. PlannerAgent     — decompose into steps (with dependency graph)
+  0. SpecAgent       — write spec/PRD with acceptance criteria (new)
+  1. FilePickerAgent — find relevant files
+  2. PlannerAgent    — decompose into steps (with dependency graph)
   3. Execute steps:
      - Group steps with no unmet depends_on → asyncio.gather() them in parallel
      - Sequential for dependent steps
      - Each step dispatched to the correct specialized agent
-  4. ReviewerAgent    — review all edits from editor steps
+     - Retry-on-failure: up to _STEP_MAX_RETRIES before marking failed (new)
+  4. ReviewerAgent   — review all edits from editor steps
   5. Yield SSE events throughout
 
 Context compression is applied before passing history to Planner and per-step agents.
@@ -29,8 +31,12 @@ from app.agents.specialized.editor import EditorAgent
 from app.agents.specialized.file_picker import FilePickerAgent
 from app.agents.specialized.planner import PlannerAgent
 from app.agents.specialized.reviewer import ReviewerAgent
+from app.agents.specialized.spec_agent import SpecAgent
 from app.agents.specialized.terminal import TerminalAgent
 from app.core.logging import get_logger
+
+_STEP_MAX_RETRIES = 3   # retry each step up to this many times on failure
+_RETRY_DELAY_S    = 2.0 # seconds between retries (exponential: *2 each attempt)
 
 logger = get_logger(__name__)
 
@@ -76,9 +82,22 @@ class Orchestrator:
         all_edits: list[dict[str, Any]] = []   # accumulated across editor steps
         step_results: dict[str, Any] = {}       # step_id → AgentResult
 
-        # ── Step 0: Compress history ─────────────────────────────────────────
+        # ── Step 0a: Compress history ─────────────────────────────────────────
         yield _emit("status", {"message": "Compressing context...", "phase": "compress"})
         compressed_history = await compress(history)
+
+        # ── Step 0b: SpecAgent — write spec before planning ──────────────────
+        yield _emit("status", {"message": "Writing spec...", "phase": "spec"})
+        spec_agent = SpecAgent()
+        spec_result = await spec_agent.run({
+            "task": task,
+            "files": [],
+            "file_contents": {},
+            "history": compressed_history,
+        })
+        yield _emit("agent_result", spec_result.to_dict())
+        spec_text: str = spec_result.data.get("spec", "")
+        spec_constraints: list[str] = spec_result.data.get("constraints", [])
 
         # ── Step 1: FilePicker ───────────────────────────────────────────────
         yield _emit("status", {"message": "Scanning codebase...", "phase": "file_picker"})
@@ -109,6 +128,9 @@ class Orchestrator:
             "files": relevant_files,
             "file_contents": file_contents,
             "history": compressed_history,
+            # Feed spec into planner so it plans towards acceptance criteria
+            "spec": spec_text,
+            "constraints": spec_constraints,
         })
         yield _emit("agent_result", plan_result.to_dict())
 
@@ -150,7 +172,7 @@ class Orchestrator:
                     "step_ids": [s["id"] for s in parallel_batch],
                 })
                 tasks = [
-                    self._execute_step(s, task, file_contents, compressed_history, all_edits)
+                    self._execute_step_with_retry(s, task, file_contents, compressed_history, all_edits)
                     for s in parallel_batch
                 ]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -172,7 +194,7 @@ class Orchestrator:
                     "step_id": step["id"],
                 })
                 try:
-                    result = await self._execute_step(
+                    result = await self._execute_step_with_retry(
                         step, task, file_contents, compressed_history, all_edits
                     )
                     step_results[step["id"]] = result
@@ -213,6 +235,43 @@ class Orchestrator:
             "total_edits": len(all_edits),
             "files_modified": list({e["path"] for e in all_edits}),
         })
+
+    async def _execute_step_with_retry(
+        self,
+        step: dict[str, Any],
+        task: str,
+        file_contents: dict[str, str],
+        history: list[dict[str, str]],
+        accumulated_edits: list[dict[str, Any]],
+    ):
+        """Wrapper: retry _execute_step up to _STEP_MAX_RETRIES on failure."""
+        delay = _RETRY_DELAY_S
+        last_exc: Exception | None = None
+        for attempt in range(1, _STEP_MAX_RETRIES + 1):
+            try:
+                result = await self._execute_step(
+                    step, task, file_contents, history, accumulated_edits
+                )
+                if result.success:
+                    return result
+                # Treat agent-level failures as retryable
+                last_exc = RuntimeError(result.error or "agent returned success=False")
+            except Exception as exc:
+                last_exc = exc
+
+            if attempt < _STEP_MAX_RETRIES:
+                logger.warning(
+                    "step_retry",
+                    step_id=step["id"],
+                    attempt=attempt,
+                    max=_STEP_MAX_RETRIES,
+                    error=str(last_exc),
+                )
+                await asyncio.sleep(delay)
+                delay *= 2  # exponential backoff
+
+        # All retries exhausted — re-raise so caller emits step_error
+        raise last_exc or RuntimeError(f"Step {step['id']} failed after {_STEP_MAX_RETRIES} attempts")
 
     async def _execute_step(
         self,
