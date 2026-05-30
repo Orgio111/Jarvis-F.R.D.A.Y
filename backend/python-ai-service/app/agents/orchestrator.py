@@ -33,6 +33,7 @@ from app.agents.specialized.planner import PlannerAgent
 from app.agents.specialized.reviewer import ReviewerAgent
 from app.agents.specialized.spec_agent import SpecAgent
 from app.agents.specialized.terminal import TerminalAgent
+from app.core.config import get_settings
 from app.core.logging import get_logger
 
 _STEP_MAX_RETRIES = 3   # retry each step up to this many times on failure
@@ -236,6 +237,89 @@ class Orchestrator:
             "files_modified": list({e["path"] for e in all_edits}),
         })
 
+    async def _execute_step_swarm(
+        self,
+        step: dict[str, Any],
+        task: str,
+        file_contents: dict[str, str],
+        history: list[dict[str, str]],
+        accumulated_edits: list[dict[str, Any]],
+    ):
+        """Competitive swarm: run 2 EditorAgents in parallel, Reviewer picks best.
+
+        Agent A runs at temperature=0.10 (precise / conservative).
+        Agent B runs at temperature=0.35 (creative / exploratory).
+        ReviewerAgent scores both; winner's result is returned.
+
+        Only activated when step.agent == 'editor' and JARVIS_SWARM_MODE=true.
+        Falls back to single agent on any parallel failure.
+        """
+        from app.agents.specialized.editor import EditorAgent as _Ed
+
+        ctx_base = {
+            "task": task,
+            "step": step,
+            "file_contents": file_contents,
+            "history": history,
+        }
+        ctx_base.update(step.get("context", {}))
+
+        # Spawn two editor instances with different temperatures
+        agent_a = _Ed(timeout=self.timeout if hasattr(self, "timeout") else 90.0)
+        agent_b = _Ed(timeout=self.timeout if hasattr(self, "timeout") else 90.0)
+
+        # Patch temperatures via context hint (EditorAgent reads _swarm_temperature if present)
+        ctx_a = {**ctx_base, "_swarm_temperature": 0.10}
+        ctx_b = {**ctx_base, "_swarm_temperature": 0.35}
+
+        logger.info("swarm_start", step_id=step["id"])
+        results = await asyncio.gather(
+            agent_a.run(ctx_a),
+            agent_b.run(ctx_b),
+            return_exceptions=True,
+        )
+
+        # Filter out exceptions
+        valid = [r for r in results if not isinstance(r, Exception) and r.success]
+        if not valid:
+            # Both failed — fall back to single-agent retry path
+            logger.warning("swarm_both_failed", step_id=step["id"])
+            return await self._execute_step(step, task, file_contents, history, accumulated_edits)
+
+        if len(valid) == 1:
+            logger.info("swarm_one_succeeded", step_id=step["id"])
+            return valid[0]
+
+        # Score both with ReviewerAgent
+        reviewer = ReviewerAgent()
+        original = {e["path"]: file_contents.get(e["path"], "") for e in (valid[0].data.get("edits") or [])}
+
+        scores = await asyncio.gather(
+            reviewer.score_edits(task, step, valid[0].data.get("edits", []), original),
+            reviewer.score_edits(task, step, valid[1].data.get("edits", []), original),
+            return_exceptions=True,
+        )
+
+        score_a = scores[0] if isinstance(scores[0], int) else 5
+        score_b = scores[1] if isinstance(scores[1], int) else 5
+
+        logger.info(
+            "swarm_scored",
+            step_id=step["id"],
+            score_a=score_a,
+            score_b=score_b,
+            winner="a" if score_a >= score_b else "b",
+        )
+
+        winner = valid[0] if score_a >= score_b else valid[1]
+        # Annotate so downstream knows swarm ran
+        winner.data["swarm"] = {
+            "score_a": score_a,
+            "score_b": score_b,
+            "winner": "a" if score_a >= score_b else "b",
+        }
+        return winner
+
     async def _execute_step_with_retry(
         self,
         step: dict[str, Any],
@@ -244,14 +328,28 @@ class Orchestrator:
         history: list[dict[str, str]],
         accumulated_edits: list[dict[str, Any]],
     ):
-        """Wrapper: retry _execute_step up to _STEP_MAX_RETRIES on failure."""
+        """Wrapper: retry _execute_step up to _STEP_MAX_RETRIES on failure.
+
+        If JARVIS_SWARM_MODE=true and step.agent=='editor', routes through
+        _execute_step_swarm() instead (two agents compete, reviewer picks best).
+        """
+        swarm_enabled = (
+            getattr(get_settings(), "jarvis_swarm_mode", False)
+            and step.get("agent", "editor") == "editor"
+        )
+
         delay = _RETRY_DELAY_S
         last_exc: Exception | None = None
         for attempt in range(1, _STEP_MAX_RETRIES + 1):
             try:
-                result = await self._execute_step(
-                    step, task, file_contents, history, accumulated_edits
-                )
+                if swarm_enabled:
+                    result = await self._execute_step_swarm(
+                        step, task, file_contents, history, accumulated_edits
+                    )
+                else:
+                    result = await self._execute_step(
+                        step, task, file_contents, history, accumulated_edits
+                    )
                 if result.success:
                     return result
                 # Treat agent-level failures as retryable

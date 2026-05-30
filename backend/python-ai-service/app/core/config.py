@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     groq_api_key: str = ""           # https://console.groq.com  — 14400 req/day free
     google_ai_api_key: str = ""      # https://aistudio.google.com — 500 req/day free
 
+    # ─── Swarm mode ───────────────────────────────────────────────────────────
+    jarvis_swarm_mode: bool = False   # run 2 EditorAgents in parallel, pick best
+
     # ─── Provider routing ─────────────────────────────────────────────────────
     ai_provider_primary: str = "nvidia_nim"
     ai_provider_fallback: str = "openrouter"

@@ -85,9 +85,12 @@ class EditorAgent(BaseAgent):
             user_msg += f"\n\nCurrent file contents:{file_blocks}"
         messages.append({"role": "user", "content": user_msg})
 
+        # Swarm mode can override temperature for diversity between agents
+        temperature = context.get("_swarm_temperature", 0.1)
+
         content, model = await self._chat(
             messages,
-            temperature=0.1,
+            temperature=temperature,
             max_tokens=4096,
         )
 
