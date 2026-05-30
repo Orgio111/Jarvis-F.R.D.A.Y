@@ -107,6 +107,7 @@ class Orchestrator:
             "task": task,
             "file_tree": file_tree,
             "max_files": max_files,
+            "repo_root": self.repo_root,
         })
         yield _emit("agent_result", fp_result.to_dict())
 
