@@ -15,9 +15,10 @@ import json
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Optional
+from typing import Any, Optional, Type
 
 import httpx
+from pydantic import BaseModel
 
 from app.agents.free_model_pool import AgentRole, FreeModelPool
 from app.core.logging import get_logger
@@ -48,9 +49,27 @@ class AgentResult:
 
 
 class BaseAgent(ABC):
-    """All specialized agents extend this."""
+    """All specialized agents extend this.
+
+    Structured output
+    -----------------
+    Subclasses may declare a Pydantic model:
+
+        class Output(BaseModel):
+            steps: list[str]
+            summary: str
+
+        output_schema = Output
+
+    When ``output_schema`` is set, ``_chat()`` appends a JSON-schema instruction
+    to the system message and attempts to validate the model response against the
+    schema via ``Output.model_validate_json()``.  On parse failure it falls back
+    to returning the raw text — existing ``_extract_json`` / string-parsing code
+    in each agent continues to work unchanged.
+    """
 
     role: AgentRole          # must set in subclass
+    output_schema: Optional[Type[BaseModel]] = None  # override in subclass
 
     def __init__(self, timeout: float = 60.0):
         self.timeout = timeout
@@ -103,16 +122,50 @@ class BaseAgent(ABC):
 
         Priority: NIM → Cerebras → Groq → Google AI Studio → OpenRouter → ProviderRouter.
         fallback_index is kept for backward compat but chain handles fallback internally.
+
+        Structured output
+        -----------------
+        If ``self.output_schema`` is set, a JSON-schema instruction is injected
+        into the last system message (or prepended as a system message), and the
+        response text is validated against the schema.  On validation success the
+        returned text is the canonical JSON string of the validated model.  On any
+        parse/validation error the raw LLM response is returned unchanged — this
+        preserves all existing agent behaviour.
         """
         from app.agents.nim_model_pool import NimModelPool
         _role = role or self.role
 
+        # ── Structured output: inject schema hint ──────────────────────────────
+        if self.output_schema is not None:
+            try:
+                schema_json = json.dumps(self.output_schema.model_json_schema(), indent=2)
+                schema_instruction = (
+                    "You MUST respond with valid JSON that conforms EXACTLY to this JSON Schema "
+                    "(no markdown, no extra keys, no prose):\n" + schema_json
+                )
+                messages = list(messages)  # shallow copy — don't mutate caller's list
+                # Inject into first system message if present, else prepend one
+                injected = False
+                for i, msg in enumerate(messages):
+                    if msg.get("role") == "system":
+                        messages[i] = {
+                            **msg,
+                            "content": msg["content"] + "\n\n" + schema_instruction,
+                        }
+                        injected = True
+                        break
+                if not injected:
+                    messages.insert(0, {"role": "system", "content": schema_instruction})
+            except Exception as _schema_exc:
+                logger.debug("structured_output_schema_inject_failed", error=str(_schema_exc))
+
         # 1. Try NIM first (highest quality, free tier)
         if NimModelPool.available() and NimModelPool.get_model(_role, fallback_index):
             try:
-                return await self._chat_nim(
+                raw, mdl = await self._chat_nim(
                     messages, _role, fallback_index, temperature, max_tokens
                 )
+                return self._validate_structured_output(raw), mdl
             except Exception as exc:
                 logger.warning("nim_chat_failed_fallback", error=str(exc))
 
@@ -141,7 +194,7 @@ class BaseAgent(ABC):
                         provider=provider_cfg["provider"],
                         model=actual_model,
                     )
-                    return content, actual_model
+                    return self._validate_structured_output(content), actual_model
                 else:
                     logger.warning(
                         "chat_provider_failed",
@@ -158,7 +211,36 @@ class BaseAgent(ABC):
                 )
 
         # 3. Final fallback: existing ProviderRouter
-        return await self._chat_via_provider(messages, max_tokens)
+        raw_text, model_used = await self._chat_via_provider(messages, max_tokens)
+        return self._validate_structured_output(raw_text), model_used
+
+    def _validate_structured_output(self, text: str) -> str:
+        """If output_schema is set, validate text against it. Returns canonical JSON on success,
+        original text on any failure (never raises — preserves backward compat)."""
+        if self.output_schema is None:
+            return text
+        try:
+            validated = self.output_schema.model_validate_json(text)
+            return validated.model_dump_json()
+        except Exception:
+            # Try stripping markdown fences first
+            stripped = text.strip()
+            for fence in ("```json", "```"):
+                if fence in stripped:
+                    start = stripped.index(fence) + len(fence)
+                    end = stripped.rindex("```", start) if "```" in stripped[start:] else len(stripped)
+                    try:
+                        validated = self.output_schema.model_validate_json(stripped[start:end].strip())
+                        return validated.model_dump_json()
+                    except Exception:
+                        pass
+            # Fall back: return raw — existing agent parsing handles it
+            logger.debug(
+                "structured_output_validation_skipped",
+                schema=self.output_schema.__name__,
+                preview=text[:100],
+            )
+            return text
 
     async def _chat_via_provider(
         self,

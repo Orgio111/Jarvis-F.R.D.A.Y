@@ -31,7 +31,7 @@ import asyncio
 import inspect
 import os
 from pathlib import Path
-from typing import Any, AsyncIterator, Callable
+from typing import Any, AsyncIterator, Callable, TypedDict
 
 from app.agents.context_compressor import compress
 from app.agents.free_model_pool import AgentRole
@@ -50,6 +50,33 @@ _RETRY_DELAY_S    = 2.0 # seconds between retries (exponential: *2 each attempt)
 logger = get_logger(__name__)
 
 Event = dict[str, Any]
+
+
+class PipelineState(TypedDict, total=False):
+    """Typed snapshot of Orchestrator.run() locals — makes serialisation trivial.
+
+    All fields are optional (total=False) so the state can be built incrementally
+    as the pipeline progresses.
+    """
+    task: str
+    file_tree: str
+    history: list[dict[str, str]]
+    max_files: int
+
+    # Phase outputs
+    compressed_history: list[dict[str, str]]
+    spec_text: str
+    spec_constraints: list[str]
+    relevant_files: list[str]
+    file_contents: dict[str, str]
+    steps: list[dict[str, Any]]
+    step_results: dict[str, Any]       # step_id → AgentResult
+    all_edits: list[dict[str, Any]]
+    completed_ids: list[str]
+
+    # Control
+    cancel_event: asyncio.Event        # set() to abort the pipeline
+
 
 _AGENT_MAP: dict[str, type] = {
     "editor":      EditorAgent,
@@ -119,17 +146,50 @@ class Orchestrator:
         file_tree: str = "",
         history: list[dict[str, str]] | None = None,
         max_files: int = 10,
+        cancel_event: asyncio.Event | None = None,
     ) -> AsyncIterator[Event]:
-        """Async generator yielding SSE-style event dicts."""
+        """Async generator yielding SSE-style event dicts.
+
+        Parameters
+        ----------
+        cancel_event:
+            Optional ``asyncio.Event``. Set it from outside to abort the
+            pipeline cleanly between phases.  Each phase checks the event
+            before starting; the generator yields a ``"cancelled"`` event
+            and returns immediately.
+        """
         history = history or []
+        cancel_event = cancel_event or asyncio.Event()  # internal if not provided
         all_edits: list[dict[str, Any]] = []   # accumulated across editor steps
         step_results: dict[str, Any] = {}       # step_id → AgentResult
 
+        # ── Build PipelineState for observability / serialisation ──────────────
+        state: PipelineState = {
+            "task": task,
+            "file_tree": file_tree,
+            "history": history,
+            "max_files": max_files,
+            "cancel_event": cancel_event,
+            "step_results": step_results,
+            "all_edits": all_edits,
+            "completed_ids": [],
+        }
+
+        def _check_cancel() -> bool:
+            """Return True and emit 'cancelled' event if cancel_event is set."""
+            return cancel_event.is_set()
+
         # ── Step 0a: Compress history ─────────────────────────────────────────
+        if _check_cancel():
+            yield _emit("cancelled", {"phase": "compress"})
+            return
         yield _emit("status", {"message": "Compressing context...", "phase": "compress"})
         compressed_history = await compress(history)
 
         # ── Step 0b: SpecAgent — write spec before planning ──────────────────
+        if _check_cancel():
+            yield _emit("cancelled", {"phase": "spec"})
+            return
         yield _emit("status", {"message": "Writing spec...", "phase": "spec"})
         spec_agent = SpecAgent()
         spec_result = await spec_agent.run({
@@ -143,6 +203,9 @@ class Orchestrator:
         spec_constraints: list[str] = spec_result.data.get("constraints", [])
 
         # ── Step 1: FilePicker ───────────────────────────────────────────────
+        if _check_cancel():
+            yield _emit("cancelled", {"phase": "file_picker"})
+            return
         yield _emit("status", {"message": "Scanning codebase...", "phase": "file_picker"})
         fp_agent = FilePickerAgent()
         fp_result = await fp_agent.run({
@@ -165,6 +228,9 @@ class Orchestrator:
                 file_contents[path] = content
 
         # ── Step 3: Planner ───────────────────────────────────────────────────
+        if _check_cancel():
+            yield _emit("cancelled", {"phase": "planner"})
+            return
         yield _emit("status", {"message": "Planning steps...", "phase": "planner"})
         planner = PlannerAgent()
         plan_result = await planner.run({
@@ -186,6 +252,9 @@ class Orchestrator:
         yield _emit("plan", {"steps": steps, "summary": plan_result.data.get("summary", "")})
 
         # ── Step 4: Execute steps (parallel where possible) ───────────────────
+        if _check_cancel():
+            yield _emit("cancelled", {"phase": "execute"})
+            return
         completed_ids: set[str] = set()
         remaining = list(steps)
 
@@ -194,6 +263,11 @@ class Orchestrator:
 
         while remaining and iteration < max_iterations:
             iteration += 1
+
+            # Check for cancellation between iterations
+            if _check_cancel():
+                yield _emit("cancelled", {"phase": "execute", "completed": list(completed_ids)})
+                return
 
             # Find steps whose dependencies are all satisfied
             ready = [

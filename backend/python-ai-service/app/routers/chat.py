@@ -305,6 +305,50 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
     if resolve_task is not None:
         model_id = await resolve_task
 
+    # ── IntentRouter: check for skill triggers BEFORE LLM ────────────────────
+    try:
+        from app.agents.intent_router import IntentRouter
+        from app.services import skill_service as _svc
+        _ir = IntentRouter(db)
+        _skill_match = await _ir.match(user_msg_raw)
+        if _skill_match:
+            logger.info(
+                "intent_router_skill_dispatch",
+                skill_id=_skill_match["skill_id"],
+                name=_skill_match["name"],
+            )
+            _skill_result = await _svc.execute(db, _skill_match["skill_id"], params={})
+            _skill_output = _skill_result.get("output") or _skill_result.get("error") or ""
+            _reply = (
+                f"[Skill: **{_skill_match['name']}**]\n\n"
+                + (str(_skill_output) if isinstance(_skill_output, str) else json.dumps(_skill_output, indent=2))
+            )
+            if stream:
+                return StreamingResponse(
+                    _stream_cached(
+                        _reply, "skill-dispatch", "intent_router",
+                        correlation_id, session_id, req_id
+                    ),
+                    media_type="text/event-stream",
+                    headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+                )
+            from app.core.envelopes import success as _ok
+            return _ok(
+                {
+                    "messageId": f"msg_{uuid4()}",
+                    "role": "assistant",
+                    "content": _reply,
+                    "model": "skill-dispatch",
+                    "providerId": "intent_router",
+                    "finishReason": "stop",
+                    "usage": None,
+                    "skillId": _skill_match["skill_id"],
+                },
+                correlation_id,
+            )
+    except Exception as _ir_exc:
+        logger.debug("intent_router_skipped", reason=str(_ir_exc))
+
     # Inject JARVIS system prompt
     messages = inject_system_prompt(messages)
 

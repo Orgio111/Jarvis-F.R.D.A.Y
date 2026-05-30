@@ -21,6 +21,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import BaseModel
+
 from app.agents.base_agent import AgentResult, BaseAgent
 from app.agents.free_model_pool import AgentRole
 
@@ -36,8 +38,20 @@ _EDIT_SCHEMA = """{
 }"""
 
 
+class _Edit(BaseModel):
+    path: str
+    content: str
+    mode: str = "replace"
+
+
+class _EditorOutput(BaseModel):
+    explanation: str
+    edits: list[_Edit]
+
+
 class EditorAgent(BaseAgent):
     role = AgentRole.EDITOR
+    output_schema = _EditorOutput
 
     async def _execute(self, context: dict[str, Any]) -> AgentResult:
         task          = context.get("task", "")

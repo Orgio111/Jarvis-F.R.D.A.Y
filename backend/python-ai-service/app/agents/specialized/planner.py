@@ -27,6 +27,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import BaseModel
+
 from app.agents.base_agent import AgentResult, BaseAgent
 from app.agents.free_model_pool import AgentRole
 
@@ -47,8 +49,24 @@ _STEP_SCHEMA = """{
 }"""
 
 
+class _PlanStep(BaseModel):
+    id: str
+    description: str
+    agent: str = "editor"
+    depends_on: list[str] = []
+    parallel: bool = False
+    input_files: list[str] = []
+    context: dict = {}
+
+
+class _PlannerOutput(BaseModel):
+    summary: str
+    steps: list[_PlanStep]
+
+
 class PlannerAgent(BaseAgent):
     role = AgentRole.PLANNER
+    output_schema = _PlannerOutput
 
     async def _execute(self, context: dict[str, Any]) -> AgentResult:
         task          = context.get("task", "")

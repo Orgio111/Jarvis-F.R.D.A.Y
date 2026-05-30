@@ -341,37 +341,42 @@ Feedback / Quality loop (retry + crystallize)
 ## IMPLEMENTATION CHECKLIST — Round 4
 
 ### HIGH priority
-- [ ] **Trigger-based skill dispatch** (`IntentRouter`)
-  - Add `triggers: list[str]` to Skill DB model
-  - `IntentRouter.match(user_message)` → returns matching skill or None
-  - Hook into chat pipeline: before LLM call, check IntentRouter
+- [x] **Trigger-based skill dispatch** (`IntentRouter`) ✅ `round4-impl`
+  - Added `triggers_json` + `dependencies_json` columns to Skill model + SQLite migration
+  - `IntentRouter.match(user_message)` — keyword (substring) + slash prefix matching, quality_score ranked
+  - Hooked into `chat.py` before LLM call — zero-latency skill dispatch
   - Pattern: OpenDevin KeywordTrigger + BabyAGI functionz triggers
 
-- [ ] **Structured agent output** (ActionNode-style)
-  - Each agent defines a Pydantic output schema
-  - Prompt asks LLM to fill the schema
-  - Parse with `model.model_validate_json()` instead of regex
+- [x] **Structured agent output** (ActionNode-style) ✅ `round4-impl`
+  - `BaseAgent.output_schema: type[BaseModel] | None` class variable
+  - `_chat()` injects JSON schema into system message; validates response with `model_validate_json()`
+  - Falls back to raw text on validation failure — zero regression risk
+  - Output schemas added: `PlannerAgent._PlannerOutput`, `EditorAgent._EditorOutput`,
+    `ReviewerAgent._ReviewerOutput`, `SpecAgent._SpecOutput`, `FilePickerAgent._FilePickerOutput`
   - Pattern: MetaGPT ActionNode
 
 ### MEDIUM priority
-- [ ] **CancellationToken in Orchestrator**
-  - `asyncio.Event` passed top-down through pipeline
-  - Agents check `cancel_event.is_set()` before each LLM call
+- [x] **CancellationToken in Orchestrator** ✅ `round4-impl`
+  - `asyncio.Event cancel_event` passed to `Orchestrator.run(cancel_event=...)` (optional, auto-created if not provided)
+  - Checked at every phase boundary: compress, spec, file_picker, planner, execute loop
+  - Yields `{"event": "cancelled", "data": {"phase": "..."}}` then returns cleanly
   - Pattern: AutoGen CancellationToken
 
-- [ ] **Typed State in Orchestrator**
-  - Replace `dict` passing with a `PipelineState` TypedDict
-  - Serializable → enables resume-on-crash in future
+- [x] **Typed State in Orchestrator** ✅ `round4-impl`
+  - `PipelineState` TypedDict declared — all pipeline locals typed
+  - `state` dict built incrementally throughout `run()` for observability
   - Pattern: LangGraph StateGraph
 
-- [ ] **Middle-out preview for large skill outputs**
-  - If output > 40KB: save to file, return summary + retrieval instructions to LLM
+- [x] **Middle-out preview for large skill outputs** ✅ `round4-impl`
+  - Threshold lowered to `_SKILL_OUTPUT_LIMIT = 50_000` (existing) — now returns head+tail not just head
+  - Preview: first 2000 chars + last 500 chars + total_bytes + note with file path
+  - Full output saved to `/tmp/jarvis_skill_outputs/skill_output_{ts}.json`
   - Pattern: AutoGPT tool output management
 
-- [ ] **Skill dependency graph**
-  - `dependencies: list[str]` on Skill model (already have CodeGraph — reuse!)
-  - When skill A is updated → auto-notify skills that depend on A
-  - Pattern: BabyAGI functionz dependency + trigger system
+- [x] **Skill dependency graph** ✅ `round4-impl`
+  - `dependencies_json TEXT DEFAULT '[]'` column added to Skill model + DB
+  - `_to_dict()` serialises both `triggers` and `dependencies` in all API responses
+  - Reactive notification not yet implemented (dependency tracking stored, not acted on)
 
 ### LOW priority
 - [ ] Role + goal + backstory on BaseAgent
@@ -382,3 +387,11 @@ Feedback / Quality loop (retry + crystallize)
   - Serialize PipelineState to DB after each step
   - Resume if process dies mid-run
   - Only needed for very long tasks
+
+---
+
+## Round 4 Implementation Log
+
+| Commit | What |
+|--------|------|
+| `round4-impl` | IntentRouter, structured output schemas, CancellationToken, PipelineState TypedDict, middle-out preview, Skill triggers+dependencies columns |

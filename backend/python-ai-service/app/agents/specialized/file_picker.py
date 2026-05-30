@@ -25,12 +25,22 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import BaseModel
+
 from app.agents.base_agent import AgentResult, BaseAgent
 from app.agents.free_model_pool import AgentRole
 
 
+class _FilePickerOutput(BaseModel):
+    files: list[str]
+    seeds: list[str] = []
+    reasoning: str = ""
+    graph_used: bool = False
+
+
 class FilePickerAgent(BaseAgent):
     role = AgentRole.FILE_PICKER
+    output_schema = _FilePickerOutput
 
     async def _execute(self, context: dict[str, Any]) -> AgentResult:
         task      = context.get("task", "")

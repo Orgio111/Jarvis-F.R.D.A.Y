@@ -73,6 +73,11 @@ class Skill(Base):
     quality_score: Mapped[float] = mapped_column(Float, default=0.5)
     execution_count: Mapped[int] = mapped_column(Integer, default=0)
     success_count: Mapped[int] = mapped_column(Integer, default=0)
+    # JSON array of trigger strings: ["keyword1", "/slash-command", ...]
+    # IntentRouter matches these against user messages to auto-dispatch this skill.
+    triggers_json: Mapped[str] = mapped_column(Text, default="[]")
+    # JSON array of skill_id strings this skill depends on (for dependency graph).
+    dependencies_json: Mapped[str] = mapped_column(Text, default="[]")
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
     updated_at: Mapped[float] = mapped_column(Float, default=time.time)
 

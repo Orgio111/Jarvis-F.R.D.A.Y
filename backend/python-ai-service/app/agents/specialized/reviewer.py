@@ -20,6 +20,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import BaseModel
+
 from app.agents.base_agent import AgentResult, BaseAgent
 from app.agents.free_model_pool import AgentRole
 
@@ -31,8 +33,16 @@ _REVIEW_SCHEMA = """{
 }"""
 
 
+class _ReviewerOutput(BaseModel):
+    approved: bool
+    score: int
+    issues: list[str] = []
+    suggestions: list[str] = []
+
+
 class ReviewerAgent(BaseAgent):
     role = AgentRole.REVIEWER
+    output_schema = _ReviewerOutput
 
     async def _execute(self, context: dict[str, Any]) -> AgentResult:
         task     = context.get("task", "")

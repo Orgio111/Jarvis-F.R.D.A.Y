@@ -470,10 +470,34 @@ async def _run_sandboxed(
 
     result = await asyncio.wait_for(run_fn(**params), timeout=_SKILL_TIMEOUT)
 
-    # Enforce output size
+    # ── Middle-out preview for large outputs ──────────────────────────────────
     serialised = json.dumps(result)
     if len(serialised) > _SKILL_OUTPUT_LIMIT:
-        return {"truncated": True, "preview": serialised[:500]}
+        # Store full output to temp file so callers can retrieve if needed
+        import os as _os
+        import tempfile as _tempfile
+
+        _out_dir = _os.path.join(_tempfile.gettempdir(), "jarvis_skill_outputs")
+        _os.makedirs(_out_dir, exist_ok=True)
+        _ts = int(time.time() * 1000)
+        _fname = f"skill_output_{_ts}.json"
+        _fpath = _os.path.join(_out_dir, _fname)
+        try:
+            with open(_fpath, "w", errors="replace") as _f:
+                _f.write(serialised)
+        except Exception as _write_exc:
+            logger.warning("skill_output_save_failed", error=str(_write_exc))
+            _fpath = "(save failed)"
+
+        _PREVIEW_HEAD = 2000
+        _PREVIEW_TAIL = 500
+        return {
+            "truncated": True,
+            "total_bytes": len(serialised),
+            "preview": serialised[:_PREVIEW_HEAD],
+            "tail": serialised[-_PREVIEW_TAIL:],
+            "note": f"Full output saved to {_fpath}",
+        }
     return result
 
 
@@ -532,11 +556,21 @@ def _to_dict(row: Skill) -> dict[str, Any]:
         params = json.loads(row.parameters_json or "[]")
     except Exception:
         params = []
+    try:
+        triggers = json.loads(row.triggers_json or "[]")
+    except Exception:
+        triggers = []
+    try:
+        dependencies = json.loads(row.dependencies_json or "[]")
+    except Exception:
+        dependencies = []
     return {
         "skillId": row.skill_id,
         "name": row.name,
         "description": row.description,
         "parameters": params,
+        "triggers": triggers,
+        "dependencies": dependencies,
         "version": row.version,
         "category": row.category,
         "origin": row.origin,

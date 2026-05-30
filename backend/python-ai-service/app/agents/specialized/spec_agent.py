@@ -20,12 +20,22 @@ from __future__ import annotations
 
 from typing import Any
 
+from pydantic import BaseModel
+
 from app.agents.base_agent import AgentResult, BaseAgent
 from app.agents.free_model_pool import AgentRole
 
 
+class _SpecOutput(BaseModel):
+    spec: str
+    scope: list[str] = []
+    out_of_scope: list[str] = []
+    constraints: list[str] = []
+
+
 class SpecAgent(BaseAgent):
     role = AgentRole.PLANNER  # use planner model — needs reasoning
+    output_schema = _SpecOutput
 
     _SYSTEM = """\
 You are a senior software architect. Your job is to write a concise spec \
