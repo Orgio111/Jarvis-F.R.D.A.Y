@@ -23,12 +23,22 @@ interface SSEClientOptions {
   initialReconnectDelay?: number;
 }
 
+interface SSEClientInternal {
+  url: string;
+  onEvent: SSEEventHandler;
+  onError: SSEErrorHandler;
+  onOpen: () => void;
+  onClose: () => void;
+  maxReconnectDelay: number;
+  initialReconnectDelay: number;
+}
+
 export class SSEClient {
   private es: EventSource | null = null;
   private reconnectDelay: number;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
-  private readonly options: Required<SSEClientOptions>;
+  private readonly options: SSEClientInternal;
 
   constructor(options: SSEClientOptions) {
     this.options = {
@@ -38,7 +48,11 @@ export class SSEClient {
       maxReconnectDelay: 30_000,
       initialReconnectDelay: 1_000,
       ...options,
-    };
+      // spread of `options` may set optional fields to undefined; re-apply defaults
+      onError: options.onError ?? (() => {}),
+      onOpen: options.onOpen ?? (() => {}),
+      onClose: options.onClose ?? (() => {}),
+    } as SSEClientInternal;
     this.reconnectDelay = this.options.initialReconnectDelay;
     this.connect();
   }
@@ -47,6 +61,7 @@ export class SSEClient {
     const url = new URL(this.options.url, window.location.href);
     url.searchParams.set('sessionId', getSessionId());
     url.searchParams.set('requestId', generateRequestId());
+    url.searchParams.set('clientVersion', env.clientVersion);
     return url.toString();
   }
 
