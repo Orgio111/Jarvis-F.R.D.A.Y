@@ -37,6 +37,7 @@ const MultiAgentPage           = lazy(() => import('@/features/multiAgent/MultiA
 const SessionReplayPage        = lazy(() => import('@/features/sessionReplay/SessionReplayPage').then(m => ({ default: m.SessionReplayPage })));
 const ApprovalGatesPage        = lazy(() => import('@/features/approval/ApprovalGatesPanel').then(m => ({ default: m.ApprovalGatesPanel })));
 const PromptLibraryPage        = lazy(() => import('@/features/promptLibrary/PromptLibraryPage').then(m => ({ default: m.PromptLibraryPage })));
+const ObsidianPage             = lazy(() => import('@/features/obsidian/ObsidianPage').then(m => ({ default: m.ObsidianPage })));
 
 function NotFoundPage() {
   return (
@@ -236,6 +237,8 @@ export function AppRouter() {
           </div>
         </SuspensePage>
       } />
+
+      <Route path="/obsidian" element={<SuspensePage skeleton="search"><div className="h-full overflow-auto"><ObsidianPage /></div></SuspensePage>} />
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

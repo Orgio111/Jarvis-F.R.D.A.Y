@@ -388,3 +388,14 @@ app.include_router(prompt_library_router)
 # ── Wake Word endpoints (part of voice) ──────────────────────────────────────
 from app.routers import wake_word as wake_word_router
 app.include_router(wake_word_router.router)
+
+# ── Obsidian Vault Integration ────────────────────────────────────────────────
+from app.routers.obsidian import router as obsidian_router
+app.include_router(obsidian_router)
+
+# Init Obsidian singleton + register orchestrator hooks on startup
+@app.on_event("startup")
+async def _init_obsidian():
+    from app.obsidian.sync import get_obsidian, register_hooks
+    get_obsidian()   # initialise singleton (reads OBSIDIAN_VAULT_PATH env)
+    register_hooks() # attach to orchestrator + self-improvement loop
