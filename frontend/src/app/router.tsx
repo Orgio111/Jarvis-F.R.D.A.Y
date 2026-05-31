@@ -33,6 +33,7 @@ const MemoryFabricPage         = lazy(() => import('@/features/memoryFabric/Memo
 const SelfEvolutionPage        = lazy(() => import('@/features/selfEvolution/SelfEvolutionPanel').then(m => ({ default: m.SelfEvolutionPanel })));
 const AgentRunPage             = lazy(() => import('@/features/agentRun/AgentRunPanel').then(m => ({ default: m.AgentRunPanel })));
 const SkillMarketplacePage     = lazy(() => import('@/features/skillMarketplace/SkillMarketplacePage').then(m => ({ default: m.SkillMarketplacePage })));
+const MultiAgentPage           = lazy(() => import('@/features/multiAgent/MultiAgentPanel').then(m => ({ default: m.MultiAgentPanel })));
 
 function NotFoundPage() {
   return (
@@ -176,6 +177,13 @@ export function AppRouter() {
         <SuspensePage skeleton="search">
           <div className="h-full overflow-auto">
             <SkillMarketplacePage />
+          </div>
+        </SuspensePage>
+      } />
+      <Route path="/multi-agent" element={
+        <SuspensePage skeleton="search">
+          <div className="h-full overflow-auto">
+            <MultiAgentPage />
           </div>
         </SuspensePage>
       } />

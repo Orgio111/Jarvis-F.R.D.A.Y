@@ -33,6 +33,7 @@ import {
   FlaskConical,
   GitBranch,
   Store,
+  Network,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
@@ -63,6 +64,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/prompt-mutation',   label: 'Prompts',        icon: Dna },
   { path: '/external-apis',     label: 'APIs',           icon: Globe },
   { path: '/swarm',             label: 'Swarm',          icon: Users },
+  { path: '/multi-agent',       label: 'Multi-Agent',    icon: Network },
   { path: '/memory-fabric',     label: 'Memory Fab',     icon: Layers },
   { path: '/self-evolution',    label: 'Evolution',     icon: FlaskConical },
   { path: '/agent-run',         label: 'Agent Run',     icon: GitBranch },
