@@ -1,14 +1,23 @@
 """Orchestrator — drives the full multi-agent pipeline for a coding task.
 
 Pipeline:
-  1. FilePickerAgent  — find relevant files
-  2. PlannerAgent     — decompose into steps (with dependency graph)
+  0. SpecAgent       — write spec/PRD with acceptance criteria
+  1. FilePickerAgent — find relevant files (LLM seeds + AST graph expansion)
+  2. PlannerAgent    — decompose into steps (with dependency graph)
   3. Execute steps:
      - Group steps with no unmet depends_on → asyncio.gather() them in parallel
      - Sequential for dependent steps
      - Each step dispatched to the correct specialized agent
-  4. ReviewerAgent    — review all edits from editor steps
+     - Retry-on-failure: up to _STEP_MAX_RETRIES before marking failed
+     - Swarm mode: 2 EditorAgents compete, ReviewerAgent picks winner
+  4. ReviewerAgent   — review all edits from editor steps
   5. Yield SSE events throughout
+
+Hooks (pre_step / post_step):
+    orch = Orchestrator(repo_root=...)
+    orch.add_hook("pre_step",  lambda step: print("starting", step["id"]))
+    orch.add_hook("post_step", lambda step, result, err: ...)
+    async for event in orch.run(...): ...
 
 Context compression is applied before passing history to Planner and per-step agents.
 
@@ -19,9 +28,10 @@ Usage:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import os
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Callable, TypedDict
 
 from app.agents.context_compressor import compress
 from app.agents.free_model_pool import AgentRole
@@ -29,12 +39,44 @@ from app.agents.specialized.editor import EditorAgent
 from app.agents.specialized.file_picker import FilePickerAgent
 from app.agents.specialized.planner import PlannerAgent
 from app.agents.specialized.reviewer import ReviewerAgent
+from app.agents.specialized.spec_agent import SpecAgent
 from app.agents.specialized.terminal import TerminalAgent
+from app.core.config import get_settings
 from app.core.logging import get_logger
+
+_STEP_MAX_RETRIES = 3   # retry each step up to this many times on failure
+_RETRY_DELAY_S    = 2.0 # seconds between retries (exponential: *2 each attempt)
 
 logger = get_logger(__name__)
 
 Event = dict[str, Any]
+
+
+class PipelineState(TypedDict, total=False):
+    """Typed snapshot of Orchestrator.run() locals — makes serialisation trivial.
+
+    All fields are optional (total=False) so the state can be built incrementally
+    as the pipeline progresses.
+    """
+    task: str
+    file_tree: str
+    history: list[dict[str, str]]
+    max_files: int
+
+    # Phase outputs
+    compressed_history: list[dict[str, str]]
+    spec_text: str
+    spec_constraints: list[str]
+    relevant_files: list[str]
+    file_contents: dict[str, str]
+    steps: list[dict[str, Any]]
+    step_results: dict[str, Any]       # step_id → AgentResult
+    all_edits: list[dict[str, Any]]
+    completed_ids: list[str]
+
+    # Control
+    cancel_event: asyncio.Event        # set() to abort the pipeline
+
 
 _AGENT_MAP: dict[str, type] = {
     "editor":      EditorAgent,
@@ -59,10 +101,44 @@ async def _load_file(path: str, repo_root: str, max_bytes: int = 8000) -> str:
 
 
 class Orchestrator:
-    """Stateless — instantiate per request."""
+    """Stateless — instantiate per request.
+
+    Hooks
+    -----
+    Register callables with ``add_hook(event, fn)`` where event is one of:
+
+    * ``"pre_step"``  — called before the first attempt of a step.
+                        Signature: ``fn(step: dict) -> None``
+    * ``"post_step"`` — called after a step completes (success or final failure).
+                        Signature: ``fn(step: dict, result, error: Exception|None) -> None``
+                        ``result`` is the AgentResult on success, else None.
+
+    Both sync and async callables are supported.
+    Hooks are stored per-instance so they don't bleed between requests.
+    """
+
+    # Event names accepted by add_hook / _run_hooks
+    _HOOK_EVENTS = frozenset({"pre_step", "post_step"})
 
     def __init__(self, repo_root: str = "."):
         self.repo_root = repo_root
+        self._hooks: dict[str, list[Callable]] = {e: [] for e in self._HOOK_EVENTS}
+
+    def add_hook(self, event: str, fn: Callable) -> None:
+        """Register a hook.  Raises ValueError for unknown events."""
+        if event not in self._HOOK_EVENTS:
+            raise ValueError(f"Unknown hook event {event!r}. Valid: {sorted(self._HOOK_EVENTS)}")
+        self._hooks[event].append(fn)
+
+    async def _run_hooks(self, event: str, *args: Any) -> None:
+        """Call all hooks registered for *event*, tolerating errors."""
+        for fn in self._hooks.get(event, []):
+            try:
+                result = fn(*args)
+                if inspect.isawaitable(result):
+                    await result
+            except Exception as exc:  # hooks must not crash the pipeline
+                logger.warning("hook_error", event=event, hook=getattr(fn, "__name__", repr(fn)), error=str(exc))
 
     async def run(
         self,
@@ -70,23 +146,73 @@ class Orchestrator:
         file_tree: str = "",
         history: list[dict[str, str]] | None = None,
         max_files: int = 10,
+        cancel_event: asyncio.Event | None = None,
     ) -> AsyncIterator[Event]:
-        """Async generator yielding SSE-style event dicts."""
+        """Async generator yielding SSE-style event dicts.
+
+        Parameters
+        ----------
+        cancel_event:
+            Optional ``asyncio.Event``. Set it from outside to abort the
+            pipeline cleanly between phases.  Each phase checks the event
+            before starting; the generator yields a ``"cancelled"`` event
+            and returns immediately.
+        """
         history = history or []
+        cancel_event = cancel_event or asyncio.Event()  # internal if not provided
         all_edits: list[dict[str, Any]] = []   # accumulated across editor steps
         step_results: dict[str, Any] = {}       # step_id → AgentResult
 
-        # ── Step 0: Compress history ─────────────────────────────────────────
+        # ── Build PipelineState for observability / serialisation ──────────────
+        state: PipelineState = {
+            "task": task,
+            "file_tree": file_tree,
+            "history": history,
+            "max_files": max_files,
+            "cancel_event": cancel_event,
+            "step_results": step_results,
+            "all_edits": all_edits,
+            "completed_ids": [],
+        }
+
+        def _check_cancel() -> bool:
+            """Return True and emit 'cancelled' event if cancel_event is set."""
+            return cancel_event.is_set()
+
+        # ── Step 0a: Compress history ─────────────────────────────────────────
+        if _check_cancel():
+            yield _emit("cancelled", {"phase": "compress"})
+            return
         yield _emit("status", {"message": "Compressing context...", "phase": "compress"})
         compressed_history = await compress(history)
 
+        # ── Step 0b: SpecAgent — write spec before planning ──────────────────
+        if _check_cancel():
+            yield _emit("cancelled", {"phase": "spec"})
+            return
+        yield _emit("status", {"message": "Writing spec...", "phase": "spec"})
+        spec_agent = SpecAgent()
+        spec_result = await spec_agent.run({
+            "task": task,
+            "files": [],
+            "file_contents": {},
+            "history": compressed_history,
+        })
+        yield _emit("agent_result", spec_result.to_dict())
+        spec_text: str = spec_result.data.get("spec", "")
+        spec_constraints: list[str] = spec_result.data.get("constraints", [])
+
         # ── Step 1: FilePicker ───────────────────────────────────────────────
+        if _check_cancel():
+            yield _emit("cancelled", {"phase": "file_picker"})
+            return
         yield _emit("status", {"message": "Scanning codebase...", "phase": "file_picker"})
         fp_agent = FilePickerAgent()
         fp_result = await fp_agent.run({
             "task": task,
             "file_tree": file_tree,
             "max_files": max_files,
+            "repo_root": self.repo_root,
         })
         yield _emit("agent_result", fp_result.to_dict())
 
@@ -102,6 +228,9 @@ class Orchestrator:
                 file_contents[path] = content
 
         # ── Step 3: Planner ───────────────────────────────────────────────────
+        if _check_cancel():
+            yield _emit("cancelled", {"phase": "planner"})
+            return
         yield _emit("status", {"message": "Planning steps...", "phase": "planner"})
         planner = PlannerAgent()
         plan_result = await planner.run({
@@ -109,6 +238,9 @@ class Orchestrator:
             "files": relevant_files,
             "file_contents": file_contents,
             "history": compressed_history,
+            # Feed spec into planner so it plans towards acceptance criteria
+            "spec": spec_text,
+            "constraints": spec_constraints,
         })
         yield _emit("agent_result", plan_result.to_dict())
 
@@ -120,6 +252,9 @@ class Orchestrator:
         yield _emit("plan", {"steps": steps, "summary": plan_result.data.get("summary", "")})
 
         # ── Step 4: Execute steps (parallel where possible) ───────────────────
+        if _check_cancel():
+            yield _emit("cancelled", {"phase": "execute"})
+            return
         completed_ids: set[str] = set()
         remaining = list(steps)
 
@@ -128,6 +263,11 @@ class Orchestrator:
 
         while remaining and iteration < max_iterations:
             iteration += 1
+
+            # Check for cancellation between iterations
+            if _check_cancel():
+                yield _emit("cancelled", {"phase": "execute", "completed": list(completed_ids)})
+                return
 
             # Find steps whose dependencies are all satisfied
             ready = [
@@ -150,7 +290,7 @@ class Orchestrator:
                     "step_ids": [s["id"] for s in parallel_batch],
                 })
                 tasks = [
-                    self._execute_step(s, task, file_contents, compressed_history, all_edits)
+                    self._execute_step_with_retry(s, task, file_contents, compressed_history, all_edits)
                     for s in parallel_batch
                 ]
                 results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -172,7 +312,7 @@ class Orchestrator:
                     "step_id": step["id"],
                 })
                 try:
-                    result = await self._execute_step(
+                    result = await self._execute_step_with_retry(
                         step, task, file_contents, compressed_history, all_edits
                     )
                     step_results[step["id"]] = result
@@ -213,6 +353,144 @@ class Orchestrator:
             "total_edits": len(all_edits),
             "files_modified": list({e["path"] for e in all_edits}),
         })
+
+    async def _execute_step_swarm(
+        self,
+        step: dict[str, Any],
+        task: str,
+        file_contents: dict[str, str],
+        history: list[dict[str, str]],
+        accumulated_edits: list[dict[str, Any]],
+    ):
+        """Competitive swarm: run 2 EditorAgents in parallel, Reviewer picks best.
+
+        Agent A runs at temperature=0.10 (precise / conservative).
+        Agent B runs at temperature=0.35 (creative / exploratory).
+        ReviewerAgent scores both; winner's result is returned.
+
+        Only activated when step.agent == 'editor' and JARVIS_SWARM_MODE=true.
+        Falls back to single agent on any parallel failure.
+        """
+        from app.agents.specialized.editor import EditorAgent as _Ed
+
+        ctx_base = {
+            "task": task,
+            "step": step,
+            "file_contents": file_contents,
+            "history": history,
+        }
+        ctx_base.update(step.get("context", {}))
+
+        # Spawn two editor instances with different temperatures
+        agent_a = _Ed(timeout=self.timeout if hasattr(self, "timeout") else 90.0)
+        agent_b = _Ed(timeout=self.timeout if hasattr(self, "timeout") else 90.0)
+
+        # Patch temperatures via context hint (EditorAgent reads _swarm_temperature if present)
+        ctx_a = {**ctx_base, "_swarm_temperature": 0.10}
+        ctx_b = {**ctx_base, "_swarm_temperature": 0.35}
+
+        logger.info("swarm_start", step_id=step["id"])
+        results = await asyncio.gather(
+            agent_a.run(ctx_a),
+            agent_b.run(ctx_b),
+            return_exceptions=True,
+        )
+
+        # Filter out exceptions
+        valid = [r for r in results if not isinstance(r, Exception) and r.success]
+        if not valid:
+            # Both failed — fall back to single-agent retry path
+            logger.warning("swarm_both_failed", step_id=step["id"])
+            return await self._execute_step(step, task, file_contents, history, accumulated_edits)
+
+        if len(valid) == 1:
+            logger.info("swarm_one_succeeded", step_id=step["id"])
+            return valid[0]
+
+        # Score both with ReviewerAgent
+        reviewer = ReviewerAgent()
+        original = {e["path"]: file_contents.get(e["path"], "") for e in (valid[0].data.get("edits") or [])}
+
+        scores = await asyncio.gather(
+            reviewer.score_edits(task, step, valid[0].data.get("edits", []), original),
+            reviewer.score_edits(task, step, valid[1].data.get("edits", []), original),
+            return_exceptions=True,
+        )
+
+        score_a = scores[0] if isinstance(scores[0], int) else 5
+        score_b = scores[1] if isinstance(scores[1], int) else 5
+
+        logger.info(
+            "swarm_scored",
+            step_id=step["id"],
+            score_a=score_a,
+            score_b=score_b,
+            winner="a" if score_a >= score_b else "b",
+        )
+
+        winner = valid[0] if score_a >= score_b else valid[1]
+        # Annotate so downstream knows swarm ran
+        winner.data["swarm"] = {
+            "score_a": score_a,
+            "score_b": score_b,
+            "winner": "a" if score_a >= score_b else "b",
+        }
+        return winner
+
+    async def _execute_step_with_retry(
+        self,
+        step: dict[str, Any],
+        task: str,
+        file_contents: dict[str, str],
+        history: list[dict[str, str]],
+        accumulated_edits: list[dict[str, Any]],
+    ):
+        """Wrapper: retry _execute_step up to _STEP_MAX_RETRIES on failure.
+
+        If JARVIS_SWARM_MODE=true and step.agent=='editor', routes through
+        _execute_step_swarm() instead (two agents compete, reviewer picks best).
+        """
+        swarm_enabled = (
+            getattr(get_settings(), "jarvis_swarm_mode", False)
+            and step.get("agent", "editor") == "editor"
+        )
+
+        await self._run_hooks("pre_step", step)
+
+        delay = _RETRY_DELAY_S
+        last_exc: Exception | None = None
+        for attempt in range(1, _STEP_MAX_RETRIES + 1):
+            try:
+                if swarm_enabled:
+                    result = await self._execute_step_swarm(
+                        step, task, file_contents, history, accumulated_edits
+                    )
+                else:
+                    result = await self._execute_step(
+                        step, task, file_contents, history, accumulated_edits
+                    )
+                if result.success:
+                    await self._run_hooks("post_step", step, result, None)
+                    return result
+                # Treat agent-level failures as retryable
+                last_exc = RuntimeError(result.error or "agent returned success=False")
+            except Exception as exc:
+                last_exc = exc
+
+            if attempt < _STEP_MAX_RETRIES:
+                logger.warning(
+                    "step_retry",
+                    step_id=step["id"],
+                    attempt=attempt,
+                    max=_STEP_MAX_RETRIES,
+                    error=str(last_exc),
+                )
+                await asyncio.sleep(delay)
+                delay *= 2  # exponential backoff
+
+        # All retries exhausted — fire post_step with error then re-raise
+        await self._run_hooks("post_step", step, None, last_exc)
+        raise last_exc or RuntimeError(f"Step {step['id']} failed after {_STEP_MAX_RETRIES} attempts")
 
     async def _execute_step(
         self,

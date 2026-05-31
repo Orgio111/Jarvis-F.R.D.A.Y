@@ -135,15 +135,26 @@ async def execute(
 
     elapsed = round((time.perf_counter() - start) * 1000, 1)
 
-    # Update counters + rolling quality score
-    row.execution_count += 1
-    if success:
-        row.success_count += 1
-    row.quality_score = round(row.success_count / max(row.execution_count, 1), 4)
-    row.updated_at = time.time()
-    await db.commit()
+    # Update counters + trust_score via registry (weighted formula)
+    from app.services.skill_registry import update_after_execution as _registry_update
+    try:
+        await _registry_update(db, skill_id, success=success, latency_ms=elapsed)
+    except Exception as _reg_exc:
+        # Fallback to legacy simple update if registry fails
+        logger.warning("registry_update_fallback", error=str(_reg_exc))
+        row.execution_count += 1
+        if success:
+            row.success_count += 1
+        row.quality_score = round(row.success_count / max(row.execution_count, 1), 4)
+        row.updated_at = time.time()
+        await db.commit()
 
-    # Trigger auto-improvement if quality is bad
+    # Reload row to get updated scores
+    from sqlalchemy import select as _select
+    _r = await db.execute(_select(Skill).where(Skill.skill_id == skill_id))
+    row = _r.scalar_one_or_none() or row
+
+    # Trigger auto-improvement if quality is still bad
     if row.quality_score < _QUALITY_IMPROVE_THRESHOLD and row.execution_count >= 3:
         asyncio.ensure_future(_auto_improve(db, row, error_msg))
 
@@ -154,6 +165,7 @@ async def execute(
         "error": error_msg or None,
         "elapsedMs": elapsed,
         "qualityScore": row.quality_score,
+        "trustScore": getattr(row, "trust_score", row.quality_score),
     }
 
 
@@ -470,10 +482,34 @@ async def _run_sandboxed(
 
     result = await asyncio.wait_for(run_fn(**params), timeout=_SKILL_TIMEOUT)
 
-    # Enforce output size
+    # ── Middle-out preview for large outputs ──────────────────────────────────
     serialised = json.dumps(result)
     if len(serialised) > _SKILL_OUTPUT_LIMIT:
-        return {"truncated": True, "preview": serialised[:500]}
+        # Store full output to temp file so callers can retrieve if needed
+        import os as _os
+        import tempfile as _tempfile
+
+        _out_dir = _os.path.join(_tempfile.gettempdir(), "jarvis_skill_outputs")
+        _os.makedirs(_out_dir, exist_ok=True)
+        _ts = int(time.time() * 1000)
+        _fname = f"skill_output_{_ts}.json"
+        _fpath = _os.path.join(_out_dir, _fname)
+        try:
+            with open(_fpath, "w", errors="replace") as _f:
+                _f.write(serialised)
+        except Exception as _write_exc:
+            logger.warning("skill_output_save_failed", error=str(_write_exc))
+            _fpath = "(save failed)"
+
+        _PREVIEW_HEAD = 2000
+        _PREVIEW_TAIL = 500
+        return {
+            "truncated": True,
+            "total_bytes": len(serialised),
+            "preview": serialised[:_PREVIEW_HEAD],
+            "tail": serialised[-_PREVIEW_TAIL:],
+            "note": f"Full output saved to {_fpath}",
+        }
     return result
 
 
@@ -532,18 +568,43 @@ def _to_dict(row: Skill) -> dict[str, Any]:
         params = json.loads(row.parameters_json or "[]")
     except Exception:
         params = []
+    try:
+        triggers = json.loads(row.triggers_json or "[]")
+    except Exception:
+        triggers = []
+    try:
+        dependencies = json.loads(row.dependencies_json or "[]")
+    except Exception:
+        dependencies = []
+    try:
+        tags = json.loads(row.tags_json or "[]")
+    except Exception:
+        tags = []
     return {
         "skillId": row.skill_id,
         "name": row.name,
         "description": row.description,
         "parameters": params,
+        "triggers": triggers,
+        "dependencies": dependencies,
         "version": row.version,
         "category": row.category,
         "origin": row.origin,
         "enabled": row.enabled,
+        "published": getattr(row, "published", False),
+        "publisher": getattr(row, "publisher", "system"),
+        "repoUrl": getattr(row, "repo_url", None),
+        "hashSha": getattr(row, "hash_sha", None),
         "qualityScore": row.quality_score,
+        "trustScore": getattr(row, "trust_score", row.quality_score),
         "executionCount": row.execution_count,
         "successCount": row.success_count,
+        "latencyMsAvg": round(getattr(row, "latency_ms_avg", 0.0), 1),
+        "userRating": round(getattr(row, "user_rating", 0.0), 2),
+        "ratingCount": getattr(row, "rating_count", 0),
+        "tags": tags,
+        "installedAt": getattr(row, "installed_at", None),
+        "previousVersionId": getattr(row, "previous_version_id", None),
         "createdAt": row.created_at,
         "updatedAt": row.updated_at,
     }

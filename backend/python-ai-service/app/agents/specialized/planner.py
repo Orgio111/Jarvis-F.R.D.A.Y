@@ -1,10 +1,12 @@
 """PlannerAgent — decomposes a task into ordered, dependency-aware steps.
 
 Input context keys:
-  task       (str)         — user's task description
-  files      (list[str])   — relevant files (from FilePickerAgent)
-  file_contents (dict)     — optional {path: content} for context
-  history    (list[dict])  — optional compressed conversation history
+  task        (str)         — user's task description
+  files       (list[str])   — relevant files (from FilePickerAgent)
+  file_contents (dict)      — optional {path: content} for context
+  history     (list[dict])  — optional compressed conversation history
+  spec        (str)         — optional spec/PRD from SpecAgent (acceptance criteria)
+  constraints (list[str])   — optional hard constraints from SpecAgent
 
 Output AgentResult.data:
   steps      (list[Step])  — ordered plan
@@ -24,6 +26,8 @@ Step shape:
 from __future__ import annotations
 
 from typing import Any
+
+from pydantic import BaseModel
 
 from app.agents.base_agent import AgentResult, BaseAgent
 from app.agents.free_model_pool import AgentRole
@@ -45,14 +49,32 @@ _STEP_SCHEMA = """{
 }"""
 
 
+class _PlanStep(BaseModel):
+    id: str
+    description: str
+    agent: str = "editor"
+    depends_on: list[str] = []
+    parallel: bool = False
+    input_files: list[str] = []
+    context: dict = {}
+
+
+class _PlannerOutput(BaseModel):
+    summary: str
+    steps: list[_PlanStep]
+
+
 class PlannerAgent(BaseAgent):
     role = AgentRole.PLANNER
+    output_schema = _PlannerOutput
 
     async def _execute(self, context: dict[str, Any]) -> AgentResult:
         task          = context.get("task", "")
         files         = context.get("files", [])
         file_contents = context.get("file_contents", {})
         history       = context.get("history", [])
+        spec          = context.get("spec", "")
+        constraints   = context.get("constraints", [])
 
         if not task:
             return AgentResult(
@@ -92,6 +114,10 @@ class PlannerAgent(BaseAgent):
             messages.append({"role": "user", "content": f"Conversation history:\n{history_ctx}"})
 
         user_content = f"Task: {task}\n\nRelevant files: {', '.join(files) or 'none'}"
+        if spec:
+            user_content += f"\n\nSpec / Acceptance Criteria:\n{spec}"
+        if constraints:
+            user_content += "\n\nHard constraints:\n" + "\n".join(f"- {c}" for c in constraints)
         if file_ctx:
             user_content += f"\n\nFile snippets:{file_ctx}"
         messages.append({"role": "user", "content": user_content})

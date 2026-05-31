@@ -73,6 +73,36 @@ class Skill(Base):
     quality_score: Mapped[float] = mapped_column(Float, default=0.5)
     execution_count: Mapped[int] = mapped_column(Integer, default=0)
     success_count: Mapped[int] = mapped_column(Integer, default=0)
+    # JSON array of trigger strings: ["keyword1", "/slash-command", ...]
+    # IntentRouter matches these against user messages to auto-dispatch this skill.
+    triggers_json: Mapped[str] = mapped_column(Text, default="[]")
+    # JSON array of skill_id strings this skill depends on (for dependency graph).
+    dependencies_json: Mapped[str] = mapped_column(Text, default="[]")
+
+    # ── Marketplace / Registry metadata ──────────────────────────────────────
+    # Source repo URL (GitHub or other VCS) — set when imported from GitHub
+    repo_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # SHA256 hash of source_code at install time — for integrity checks
+    hash_sha: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Composite trust score 0.0–1.0 (weighted formula: success*0.5 + freq*0.2 + speed*0.2 + feedback*0.1)
+    trust_score: Mapped[float] = mapped_column(Float, default=0.5)
+    # Rolling average execution latency in milliseconds
+    latency_ms_avg: Mapped[float] = mapped_column(Float, default=0.0)
+    # JSON array of tag strings: ["search", "internet", "nlp", …]
+    tags_json: Mapped[str] = mapped_column(Text, default="[]")
+    # Publisher identifier (user_id or "system")
+    publisher: Mapped[str] = mapped_column(String(128), default="system")
+    # Cumulative user feedback score 0.0–5.0 (avg of ratings)
+    user_rating: Mapped[float] = mapped_column(Float, default=0.0)
+    # Number of user ratings submitted
+    rating_count: Mapped[int] = mapped_column(Integer, default=0)
+    # Whether this skill is published to the shared marketplace registry
+    published: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Timestamp when skill was installed from external source
+    installed_at: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Previous version skill_id (for evolution chain)
+    previous_version_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
     created_at: Mapped[float] = mapped_column(Float, default=time.time)
     updated_at: Mapped[float] = mapped_column(Float, default=time.time)
 

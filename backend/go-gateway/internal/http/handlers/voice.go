@@ -78,6 +78,43 @@ func (h *VoiceHandler) STT(w http.ResponseWriter, r *http.Request) {
 	contracts.WriteSuccess(w, correlationID, data)
 }
 
+// SetRef handles POST /api/voice/set-ref — forwards multipart WAV to Python
+func (h *VoiceHandler) SetRef(w http.ResponseWriter, r *http.Request) {
+	correlationID := mw.GetCorrelationID(r)
+	sessionID := mw.GetSessionID(r)
+
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		contracts.WriteInternalError(w, correlationID)
+		return
+	}
+
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodPost,
+		h.cfg.PythonAIServiceURL+"/voice/set-ref", bytes.NewReader(body))
+	if err != nil {
+		contracts.WriteInternalError(w, correlationID)
+		return
+	}
+	req.Header.Set("Content-Type", r.Header.Get("Content-Type"))
+	req.Header.Set("X-Correlation-ID", correlationID)
+	req.Header.Set("X-Session-ID", sessionID)
+	req.Header.Set("X-Source", "go-gateway")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		contracts.WriteServiceUnavailable(w, correlationID, "voice set-ref service unavailable")
+		return
+	}
+	defer resp.Body.Close()
+
+	var data interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&data); err != nil {
+		contracts.WriteInternalError(w, correlationID)
+		return
+	}
+	contracts.WriteSuccess(w, correlationID, data)
+}
+
 // TTS handles POST /api/voice/tts
 func (h *VoiceHandler) TTS(w http.ResponseWriter, r *http.Request) {
 	correlationID := mw.GetCorrelationID(r)

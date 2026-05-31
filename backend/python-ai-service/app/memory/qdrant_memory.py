@@ -188,13 +188,15 @@ class QdrantMemory:
                 ]
                 qdrant_filter = Filter(must=conditions)
 
-            hits = self._client.search(
+            # qdrant-client >= 1.10 uses query_points() instead of search()
+            result = self._client.query_points(
                 collection_name=cname,
-                query_vector=vec,
+                query=vec,
                 limit=top_k,
                 query_filter=qdrant_filter,
                 with_payload=True,
             )
+            hits = result.points
             return [
                 MemoryHit(
                     id=str(h.id),

@@ -33,6 +33,14 @@ class Settings(BaseSettings):
     openrouter_api_key: str = ""
     openrouter_base_url: str = "https://openrouter.ai/api/v1"
 
+    # ─── Free provider keys (new — all optional) ─────────────────────────────
+    cerebras_api_key: str = ""       # https://cloud.cerebras.ai — 1M tokens/day free
+    groq_api_key: str = ""           # https://console.groq.com  — 14400 req/day free
+    google_ai_api_key: str = ""      # https://aistudio.google.com — 500 req/day free
+
+    # ─── Swarm mode ───────────────────────────────────────────────────────────
+    jarvis_swarm_mode: bool = False   # run 2 EditorAgents in parallel, pick best
+
     # ─── Provider routing ─────────────────────────────────────────────────────
     ai_provider_primary: str = "nvidia_nim"
     ai_provider_fallback: str = "openrouter"
@@ -89,8 +97,13 @@ class Settings(BaseSettings):
     tts_device: str = "auto"
     tts_model_cache_dir: str = "./data/tts"
 
-    # ─── Voice ────────────────────────────────────────────────────────────────
+    # ─── Voice (JarvisVoice — MN+EN bilingual) ───────────────────────────────
     voice_streaming_enabled: bool = True
+    # Device for JarvisVoice STT+TTS models: "auto" | "cuda" | "cpu" | "mps"
+    voice_device: str = "auto"
+    # Optional default voice reference WAVs for TTS (voice cloning)
+    voice_ref_en_path: str = ""   # path to EN reference WAV (≥3s)
+    voice_ref_mn_path: str = ""   # path to MN reference WAV (≥3s)
 
     # ─── Embeddings ───────────────────────────────────────────────────────────
     embeddings_enabled: bool = True

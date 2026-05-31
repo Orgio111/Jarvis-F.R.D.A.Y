@@ -78,6 +78,7 @@ func Build(cfg *config.Config, aiProxy *proxy.AIProxy, redis *redisclient.Client
 		r.Get("/api/voice/status", voiceH.Status)
 		r.Post("/api/voice/stt", voiceH.STT)
 		r.Post("/api/voice/tts", voiceH.TTS)
+		r.Post("/api/voice/set-ref", voiceH.SetRef)
 
 		// Memory
 		memoryH := handlers.NewMemoryHandler(cfg, aiProxy)
