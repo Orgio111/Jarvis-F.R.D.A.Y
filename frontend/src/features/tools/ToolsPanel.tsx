@@ -4,8 +4,10 @@ import { useQuery, useMutation } from '@tanstack/react-query';
 import { apiClient } from '@/lib/api/client';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
+import { NeonBadge } from '@/components/ui/NeonBadge';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
 import { freshness } from '@/lib/query/freshness';
+import { CheckCircle2, XCircle, ChevronDown, ChevronRight, AlertTriangle } from 'lucide-react';
 
 interface Tool {
   id: string;
@@ -66,6 +68,24 @@ export function ToolsPanel() {
 
   const tools = data?.tools ?? [];
 
+  // ── Local Actions (Merge: Local Actions → Tools) ──
+  const [showActions, setShowActions] = useState(true);
+  const { data: localActions } = useQuery<{ actions: Array<{ id: string; name: string; description: string; type: string; device: string; status: string; approvedAt: string }> }>({
+    queryKey: ['local-actions', 'pending'],
+    queryFn: () => apiClient.get('/local-actions/pending'),
+    enabled: bootstrapReady,
+    staleTime: 15_000,
+    gcTime: 60_000,
+  });
+  const approveAction = useMutation({
+    mutationFn: (id: string) => apiClient.post(`/local-actions/${id}/approve`, {}),
+  });
+  const denyAction = useMutation({
+    mutationFn: (id: string) => apiClient.post(`/local-actions/${id}/deny`, {}),
+  });
+
+  const pendingActions = localActions?.actions?.filter(a => a.status === 'pending') ?? [];
+
   return (
     <div className="p-6 overflow-auto h-full">
       <SectionHeader
@@ -113,6 +133,66 @@ export function ToolsPanel() {
               )}
             </m.button>
           ))}
+        </div>
+
+        {/* Local Actions section (Merge: Local Actions → Tools) */}
+        <div className="w-56 shrink-0">
+          <button
+            onClick={() => setShowActions(!showActions)}
+            className="flex items-center gap-1.5 w-full mb-2 text-jarvis-text-dim/60 hover:text-jarvis-text transition-colors"
+          >
+            {showActions ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+            <span className="text-[10px] font-mono tracking-wider uppercase">Pending Actions</span>
+            {pendingActions.length > 0 && (
+              <NeonBadge color="yellow" size="sm" label={`${pendingActions.length}`} />
+            )}
+          </button>
+
+          {showActions && (
+            <div className="space-y-1.5 max-h-64 overflow-y-auto scrollbar-thin pr-1">
+              {pendingActions.length === 0 ? (
+                <GlassPanel className="p-3">
+                  <div className="flex items-center gap-2 text-jarvis-text-dim/50">
+                    <CheckCircle2 size={12} className="text-jarvis-green" />
+                    <span className="text-[10px] font-mono">No pending actions</span>
+                  </div>
+                </GlassPanel>
+              ) : (
+                pendingActions.map((action) => (
+                  <GlassPanel key={action.id} className="p-2.5">
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={12} className="text-jarvis-yellow shrink-0 mt-0.5" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] font-mono text-jarvis-text-bright truncate">{action.name}</p>
+                        <p className="text-[9px] font-mono text-jarvis-text-dim/60 line-clamp-2">{action.description}</p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <button
+                            onClick={() => approveAction.mutate(action.id)}
+                            disabled={approveAction.isPending}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-mono bg-jarvis-green/10 border border-jarvis-green/30 text-jarvis-green hover:bg-jarvis-green/20 transition-all disabled:opacity-50"
+                          >
+                            <CheckCircle2 size={8} />
+                            Allow
+                          </button>
+                          <button
+                            onClick={() => denyAction.mutate(action.id)}
+                            disabled={denyAction.isPending}
+                            className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-mono bg-jarvis-red/10 border border-jarvis-red/30 text-jarvis-red hover:bg-jarvis-red/20 transition-all disabled:opacity-50"
+                          >
+                            <XCircle size={8} />
+                            Deny
+                          </button>
+                          {action.type && (
+                            <span className="ml-auto text-[8px] font-mono text-jarvis-text-dim/40 uppercase">{action.type}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </GlassPanel>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {/* Tool detail + executor */}

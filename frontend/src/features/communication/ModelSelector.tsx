@@ -129,8 +129,11 @@ export function ModelSelector({ disabled = false }: Props) {
 
                 return (
                   <div key={mode} className="relative">
-                    <button
+                    <div
                       onClick={() => handleSelectMode(mode)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSelectMode(mode); }}
                       className={[
                         'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left',
                         'transition-all duration-150 cursor-pointer group',
@@ -186,7 +189,7 @@ export function ModelSelector({ disabled = false }: Props) {
                           Model ▾
                         </button>
                       )}
-                    </button>
+                    </div>
 
                     {/* Manual model sub-dropdown */}
                     <AnimatePresence>

@@ -1,1 +1,0 @@
-export { ProviderDiscoveryPanel } from './ProviderDiscoveryPanel';

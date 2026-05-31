@@ -42,13 +42,9 @@ export class SSEClient {
 
   constructor(options: SSEClientOptions) {
     this.options = {
-      onError: () => {},
-      onOpen: () => {},
-      onClose: () => {},
       maxReconnectDelay: 30_000,
       initialReconnectDelay: 1_000,
       ...options,
-      // spread of `options` may set optional fields to undefined; re-apply defaults
       onError: options.onError ?? (() => {}),
       onOpen: options.onOpen ?? (() => {}),
       onClose: options.onClose ?? (() => {}),

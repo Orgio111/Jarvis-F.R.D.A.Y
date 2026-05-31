@@ -2,14 +2,16 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── JARVIS Base Styles ──────────────────────────────────────────────────── */
+/* ─── JARVIS Design System v2 ─────────────────────────────────────────────── */
 
 @layer base {
   :root {
     --jarvis-bg:            #080c14;
     --jarvis-bg-2:          #0a1020;
     --jarvis-bg-3:          #0e1a2a;
+    --jarvis-bg-4:          #142030;
     --jarvis-cyan:          #00d4ff;
+    --jarvis-cyan-dim:      rgba(0, 212, 255, 0.3);
     --jarvis-blue:          #0066ff;
     --jarvis-green:         #00ff88;
     --jarvis-yellow:        #ffd700;
@@ -20,8 +22,16 @@
     --jarvis-text-bright:   #e8f4ff;
     --jarvis-border:        rgba(0, 212, 255, 0.15);
     --jarvis-border-strong: rgba(0, 212, 255, 0.35);
+    --jarvis-border-glow:   rgba(0, 212, 255, 0.5);
     --scrollbar-width:      6px;
     --scanline-height:      3px;
+    --radius-sm:            6px;
+    --radius-md:            10px;
+    --radius-lg:            14px;
+    --radius-xl:            20px;
+    --transition-fast:      150ms ease;
+    --transition-base:      250ms ease;
+    --transition-slow:      400ms cubic-bezier(0.16, 1, 0.3, 1);
   }
 
   * {
@@ -554,4 +564,108 @@
     );
     pointer-events: none;
   }
+
+  /* ── Panel header accent ── */
+  .jarvis-panel-header {
+    @apply flex items-center justify-between px-5 py-3 border-b;
+    border-color: var(--jarvis-border);
+  }
+
+  .jarvis-panel-title {
+    @apply flex items-center gap-2 text-xs font-mono font-semibold tracking-wider uppercase;
+    color: var(--jarvis-cyan);
+  }
+
+  /* ── Resource bar (thick animated) ── */
+  .jarvis-resource-bar {
+    @apply h-2 rounded-full overflow-hidden;
+    background: rgba(10, 18, 36, 0.6);
+  }
+
+  .jarvis-resource-bar-fill {
+    @apply h-full rounded-full transition-all duration-700 ease-out;
+  }
+
+  /* ── Tag / chip pill ── */
+  .jarvis-tag {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-mono font-medium uppercase tracking-wider border;
+    border-color: var(--jarvis-border);
+    color: var(--jarvis-text-dim);
+    background: rgba(10, 18, 36, 0.4);
+    transition: all var(--transition-base);
+  }
+
+  .jarvis-tag:hover {
+    border-color: var(--jarvis-border-strong);
+    color: var(--jarvis-cyan);
+  }
+
+  /* ── Sidebar category label ── */
+  .jarvis-nav-category {
+    @apply px-3 py-2 text-[9px] font-mono font-bold uppercase tracking-[0.2em];
+    color: rgba(90, 122, 158, 0.4);
+  }
+
+  /* ── Gradient text utility ── */
+  .jarvis-text-gradient {
+    background: linear-gradient(135deg, var(--jarvis-cyan), var(--jarvis-blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .jarvis-text-gradient-green {
+    background: linear-gradient(135deg, var(--jarvis-green), var(--jarvis-cyan));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .jarvis-text-gradient-purple {
+    background: linear-gradient(135deg, var(--jarvis-purple), var(--jarvis-blue));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Subtle divider ── */
+  .jarvis-divider {
+    border: none;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--jarvis-border), transparent);
+    margin: 0;
+  }
+
+  /* ── Empty state icon container ── */
+  .jarvis-empty-icon {
+    @apply w-14 h-14 mx-auto rounded-2xl flex items-center justify-center border;
+    border-color: var(--jarvis-border);
+    background: rgba(10, 18, 36, 0.4);
+  }
+
+  /* ── Clickable card with arrow hint ── */
+  .jarvis-card-link {
+    @apply rounded-xl border transition-all duration-250 cursor-pointer;
+    border-color: var(--jarvis-border);
+    background: rgba(10, 18, 36, 0.35);
+  }
+
+  .jarvis-card-link:hover {
+    border-color: var(--jarvis-border-strong);
+    background: rgba(10, 18, 36, 0.55);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(0, 212, 255, 0.08);
+    transform: translateY(-1px);
+  }
+
+  /* ── Status light (smaller, cleaner) ── */
+  .jarvis-status-light {
+    @apply inline-block w-1.5 h-1.5 rounded-full;
+  }
+
+  .jarvis-status-light.green { background: var(--jarvis-green); }
+  .jarvis-status-light.cyan   { background: var(--jarvis-cyan); }
+  .jarvis-status-light.yellow { background: var(--jarvis-yellow); }
+  .jarvis-status-light.red    { background: var(--jarvis-red); }
+  .jarvis-status-light.purple { background: var(--jarvis-purple); }
+  .jarvis-status-light.dim    { background: var(--jarvis-text-dim); }
 }

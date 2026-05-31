@@ -9,7 +9,6 @@ import { useEffect } from 'react';
 import apiClient from '@/lib/api/client';
 import type { BootstrapData } from '@/lib/api/types';
 import { useBootstrapStore } from './bootstrapStore';
-import { useGpuStore } from '@/features/gpu/gpuStore';
 import { getErrorMessage } from '@/lib/api/errors';
 
 const MAX_RETRIES = 8;
@@ -41,7 +40,6 @@ export function useBootstrap() {
           signal: abortController.signal,
         });
         if (cancelled) return;
-        hydrateStores(result);
         setReady(result);
       } catch (err) {
         if (cancelled || (err as Error).name === 'AbortError') return;
@@ -71,12 +69,4 @@ export function useBootstrap() {
   return { status, retryCount };
 }
 
-function hydrateStores(data: BootstrapData): void {
-  // Hydrate GPU store (this store is currently the only one with explicit setters)
-  useGpuStore.getState().setStatus(data.gpu);
-
-  // Other bootstrap slices (system/providers/features/etc.) are consumed directly
-  // from `useBootstrapStore((s) => s.data)` in the UI. No additional Zustand
-  // stores exist for those slices in this codebase.
-}
 

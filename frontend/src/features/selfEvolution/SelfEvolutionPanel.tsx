@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { m } from 'framer-motion';
+import { useQuery, useMutation } from '@tanstack/react-query';
 import { useEvolutionStatus, useEvolutionTrials, useBestPractices, useProposeMutation, useRunTrial } from './useSelfEvolution';
 import { GlassPanel } from '@/components/ui/GlassPanel';
 import { SectionHeader } from '@/components/ui/SectionHeader';
 import { NeonBadge } from '@/components/ui/NeonBadge';
 import { CockpitButton } from '@/components/ui/CockpitButton';
-import { Dna, TrendingUp, Target, FlaskConical, CheckCircle2, Sparkles, Lightbulb, ArrowUp, ArrowDown } from 'lucide-react';
+import { apiClient } from '@/lib/api/client';
+import { Dna, TrendingUp, Target, FlaskConical, CheckCircle2, Sparkles, Lightbulb, ArrowUp, ArrowDown, ThumbsUp, ThumbsDown, Lightbulb as LightbulbIcon } from 'lucide-react';
 
 const MUTATION_TYPES = [
   { value: 'prompt_strategy', label: 'Prompt Strategy' },
@@ -27,11 +29,26 @@ export function SelfEvolutionPanel() {
   const { data: trialsData } = useEvolutionTrials(20);
   const { data: bestPracticesData } = useBestPractices(10);
 
+  // ── Self Improvement suggestions ──
+  const { data: suggestionsData } = useQuery<{ suggestions: Array<{ id: string; title: string; description: string; targetArea: string; expectedImprovement: number; status: string }> }>({
+    queryKey: ['self-improvement', 'suggestions'],
+    queryFn: () => apiClient.get('/self-improvement/suggestions'),
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+  });
+  const approveSuggestion = useMutation({
+    mutationFn: (id: string) => apiClient.post(`/self-improvement/suggestions/${id}/approve`, {}),
+  });
+  const rejectSuggestion = useMutation({
+    mutationFn: (id: string) => apiClient.post(`/self-improvement/suggestions/${id}/reject`, {}),
+  });
+
   const proposeMut = useProposeMutation();
   const runTrial = useRunTrial();
 
   const trials = trialsData?.trials ?? [];
   const bestPractices = bestPracticesData?.bestPractices ?? [];
+  const suggestions = suggestionsData?.suggestions ?? [];
 
   const handlePropose = () => {
     if (!mutTarget.trim()) return;
@@ -126,7 +143,7 @@ export function SelfEvolutionPanel() {
 
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-jarvis-border/20">
-        {(['dashboard', 'trials', 'mutate'] as const).map(tab => (
+        {(['dashboard', 'suggestions', 'trials', 'mutate'] as const).map(tab => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -136,7 +153,7 @@ export function SelfEvolutionPanel() {
                 : 'text-jarvis-text-dim/60 hover:text-jarvis-text border-transparent'
             }`}
           >
-            {tab === 'dashboard' ? 'Best Practices' : tab === 'trials' ? 'Trials' : 'Mutate'}
+            {tab === 'dashboard' ? 'Best Practices' : tab === 'suggestions' ? 'Suggestions' : tab === 'trials' ? 'Trials' : 'Mutate'}
           </button>
         ))}
       </div>
@@ -164,6 +181,56 @@ export function SelfEvolutionPanel() {
                   <p className="text-xs font-mono font-bold text-jarvis-green">+{bp.improvementDelta}%</p>
                   <p className="text-[10px] font-mono text-jarvis-text-dim/60">{bp.originalComposite} → {bp.mutatedComposite}</p>
                 </div>
+              </div>
+            </GlassPanel>
+          ))}
+        </div>
+      )}
+
+      {/* Suggestions Tab */}
+      {activeTab === 'suggestions' && (
+        <div className="space-y-2">
+          {suggestions.length === 0 && (
+            <GlassPanel className="p-8 flex flex-col items-center justify-center gap-3">
+              <LightbulbIcon size={32} className="text-jarvis-text-dim/30" />
+              <p className="text-jarvis-text-dim text-xs font-mono">No improvement suggestions yet</p>
+            </GlassPanel>
+          )}
+          {suggestions.map((s) => (
+            <GlassPanel key={s.id} className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="w-7 h-7 rounded-lg bg-jarvis-yellow/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <LightbulbIcon size={14} className="text-jarvis-yellow" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-mono font-semibold text-jarvis-text-bright">{s.title}</span>
+                    <NeonBadge color={s.status === 'pending' ? 'yellow' : s.status === 'approved' ? 'green' : 'dim'} label={s.status} size="sm" />
+                  </div>
+                  <p className="text-[11px] font-mono text-jarvis-text-dim/70 mb-1">{s.description}</p>
+                  <div className="flex items-center gap-3 text-[10px] font-mono text-jarvis-text-dim/50">
+                    <span>Target: {s.targetArea}</span>
+                    <span className="text-jarvis-green">+{s.expectedImprovement}% expected</span>
+                  </div>
+                </div>
+                {s.status === 'pending' && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      onClick={() => approveSuggestion.mutate(s.id)}
+                      className="p-1.5 rounded-lg bg-jarvis-green/10 border border-jarvis-green/30 text-jarvis-green hover:bg-jarvis-green/20 transition-all"
+                      title="Approve"
+                    >
+                      <ThumbsUp size={12} />
+                    </button>
+                    <button
+                      onClick={() => rejectSuggestion.mutate(s.id)}
+                      className="p-1.5 rounded-lg bg-jarvis-red/10 border border-jarvis-red/30 text-jarvis-red hover:bg-jarvis-red/20 transition-all"
+                      title="Reject"
+                    >
+                      <ThumbsDown size={12} />
+                    </button>
+                  </div>
+                )}
               </div>
             </GlassPanel>
           ))}

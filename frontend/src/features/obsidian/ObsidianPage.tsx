@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useObsidian } from './useObsidian';
 import { GraphCanvas } from './GraphCanvas';
+import { apiClient } from '@/lib/api/client';
 import type { GraphNode } from './useObsidian';
 
 const TYPE_COLORS: Record<string, string> = {
@@ -25,8 +27,35 @@ export const ObsidianPage: React.FC = () => {
     readFile,
   } = useObsidian();
 
-  const [tab, setTab] = useState<'graph' | 'files' | 'viewer'>('graph');
+  const [tab, setTab] = useState<'graph' | 'files' | 'viewer' | 'memory' | 'fabric' | 'replays'>('graph');
   const [fileSearch, setFileSearch] = useState('');
+
+  // ── Memory entries (Merge: Memory → Obsidian) ──
+  const { data: memoryEntries } = useQuery<{ entries: Array<{ id: string; title: string; type: string; timestamp: string; summary: string }> }>({
+    queryKey: ['memory', 'entries'],
+    queryFn: () => apiClient.get('/memory/entries?limit=20'),
+    enabled: tab === 'memory',
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+  });
+
+  // ── Memory Fabric (Merge: Memory Fabric → Obsidian) ──
+  const { data: fabricData } = useQuery<{ status: string; activeThreads: number; totalContexts: number; recentMemories: Array<{ id: string; label: string; type: string }> }>({
+    queryKey: ['memory-fabric', 'status'],
+    queryFn: () => apiClient.get('/memory-fabric/status'),
+    enabled: tab === 'fabric',
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+  });
+
+  // ── Session Replays (Merge: Session Replay → Obsidian) ──
+  const { data: replayData } = useQuery<{ sessions: Array<{ id: string; label: string; messageCount: number; duration: string; timestamp: string }> }>({
+    queryKey: ['session-replay', 'list'],
+    queryFn: () => apiClient.get('/session-replay/list?limit=20'),
+    enabled: tab === 'replays',
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+  });
 
   const handleNodeClick = (node: GraphNode) => {
     readFile(node.path);
@@ -76,8 +105,8 @@ export const ObsidianPage: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex border-b border-gray-700">
-        {(['graph', 'files', 'viewer'] as const).map((t) => (
+      <div className="flex border-b border-gray-700 flex-wrap">
+        {(['graph', 'files', 'viewer', 'memory', 'fabric', 'replays'] as const).map((t) => (
           <button
             key={t}
             onClick={() => {
@@ -90,7 +119,7 @@ export const ObsidianPage: React.FC = () => {
                 : 'border-transparent text-gray-400 hover:text-gray-300'
             }`}
           >
-            {t === 'graph' ? '🌐 Graph' : t === 'files' ? '📁 Files' : '📄 Viewer'}
+            {t === 'graph' ? '🌐 Graph' : t === 'files' ? '📁 Files' : t === 'viewer' ? '📄 Viewer' : t === 'memory' ? '💾 Memory' : t === 'fabric' ? '🧵 Fabric' : '⏪ Replays'}
           </button>
         ))}
         {tab === 'graph' && (
@@ -209,6 +238,126 @@ export const ObsidianPage: React.FC = () => {
               <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
                 Select a file from the Files tab or click a graph node
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Memory tab (Merge: Memory → Obsidian) */}
+        {tab === 'memory' && (
+          <div className="space-y-2 max-h-[500px] overflow-y-auto">
+            {memoryEntries?.entries?.length === 0 && (
+              <div className="flex items-center justify-center h-32 text-gray-500 text-sm">
+                No memory entries yet
+              </div>
+            )}
+            {memoryEntries?.entries?.map((entry) => (
+              <div
+                key={entry.id}
+                className="flex items-start gap-3 p-3 rounded-lg bg-gray-800/50 border border-gray-700/50 hover:border-blue-500/30 transition-colors"
+              >
+                <div className={`w-2 h-2 rounded-full mt-1.5 ${
+                  entry.type === 'agent' ? 'bg-blue-400' :
+                  entry.type === 'task' ? 'bg-amber-400' :
+                  entry.type === 'note' ? 'bg-gray-400' : 'bg-emerald-400'
+                }`} />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white text-xs font-medium truncate">{entry.title}</span>
+                    <span className="text-[10px] font-mono text-gray-500 capitalize">{entry.type}</span>
+                  </div>
+                  {entry.summary && (
+                    <p className="text-gray-400 text-[11px] mt-0.5 line-clamp-2">{entry.summary}</p>
+                  )}
+                  {entry.timestamp && (
+                    <p className="text-gray-600 text-[10px] mt-1 font-mono">{entry.timestamp}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+            {!memoryEntries && (
+              <div className="text-gray-500 text-sm text-center py-8">Loading memory entries...</div>
+            )}
+          </div>
+        )}
+
+        {/* Fabric tab (Merge: Memory Fabric → Obsidian) */}
+        {tab === 'fabric' && (
+          <div className="space-y-3 max-h-[500px] overflow-y-auto">
+            {fabricData ? (
+              <>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <div className="px-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/50">
+                    <p className="text-gray-500 text-[10px] font-mono">Status</p>
+                    <p className="text-white text-xs font-mono mt-0.5 capitalize">{fabricData.status}</p>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/50">
+                    <p className="text-gray-500 text-[10px] font-mono">Active Threads</p>
+                    <p className="text-white text-xs font-mono mt-0.5">{fabricData.activeThreads}</p>
+                  </div>
+                  <div className="px-3 py-1.5 rounded-lg bg-gray-800/60 border border-gray-700/50">
+                    <p className="text-gray-500 text-[10px] font-mono">Total Contexts</p>
+                    <p className="text-white text-xs font-mono mt-0.5">{fabricData.totalContexts}</p>
+                  </div>
+                </div>
+
+                {fabricData.recentMemories?.length > 0 && (
+                  <div>
+                    <p className="text-gray-400 text-xs font-medium mb-2">Recent Fabric Memories</p>
+                    <div className="space-y-1.5">
+                      {fabricData.recentMemories.map((m) => (
+                        <div key={m.id} className="flex items-center gap-2 p-2.5 rounded-lg bg-gray-800/40 border border-gray-700/30">
+                          <span className={`w-1.5 h-1.5 rounded-full ${
+                            m.type === 'memory' ? 'bg-emerald-400' :
+                            m.type === 'context' ? 'bg-blue-400' : 'bg-gray-400'
+                          }`} />
+                          <span className="text-gray-300 text-xs font-mono">{m.label}</span>
+                          <span className="text-gray-600 text-[10px] font-mono ml-auto">{m.type}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-gray-500 text-sm text-center py-8">Loading fabric data...</div>
+            )}
+          </div>
+        )}
+
+        {/* Replays tab (Merge: Session Replay → Obsidian) */}
+        {tab === 'replays' && (
+          <div className="space-y-2 max-h-[500px] overflow-y-auto">
+            {replayData?.sessions?.length === 0 && (
+              <div className="flex items-center justify-center h-32 text-gray-500 text-sm">
+                No recorded sessions yet
+              </div>
+            )}
+            {replayData?.sessions?.map((session) => (
+              <div
+                key={session.id}
+                className="flex items-start gap-3 p-3 rounded-lg bg-gray-800/50 border border-gray-700/50 hover:border-purple-500/30 transition-colors cursor-pointer"
+              >
+                <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center justify-center shrink-0">
+                  <span className="text-purple-400 text-xs">⏪</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-white text-xs font-medium truncate">{session.label || 'Unnamed Session'}</span>
+                    <span className="text-gray-500 text-[10px] font-mono">{session.messageCount} messages</span>
+                  </div>
+                  <div className="flex items-center gap-3 mt-1">
+                    {session.duration && (
+                      <span className="text-gray-500 text-[10px] font-mono">{session.duration}</span>
+                    )}
+                    {session.timestamp && (
+                      <span className="text-gray-600 text-[10px] font-mono">{session.timestamp}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {!replayData && (
+              <div className="text-gray-500 text-sm text-center py-8">Loading sessions...</div>
             )}
           </div>
         )}

@@ -23,9 +23,7 @@ import {
   RefreshCw,
   Shield,
   Users,
-  Layers,
   FlaskConical,
-  Globe,
   Dna,
   TrendingUp,
 } from 'lucide-react';
@@ -33,34 +31,9 @@ import { apiClient } from '@/lib/api/client';
 import { HudVisualization } from '@/components/ui/HudVisualization';
 import { NeonBadge } from '@/components/ui/NeonBadge';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
-import { useGpuStore } from '@/features/gpu/gpuStore';
 import type { HealthResponse, FeatureFlags } from '@/lib/api/types';
 
 // ─── Animated Counter ────────────────────────────────────────────────────────
-
-function SecurityCheck({ label, ok }: { label: string; ok: boolean }) {
-  return (
-    <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-jarvis-bg-2/30 transition-colors">
-      <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-jarvis-green' : 'bg-jarvis-red'}`} />
-      <span className="text-xs font-mono text-jarvis-text-dim/80 flex-1">{label}</span>
-      <span className={`text-[10px] font-mono ${ok ? 'text-jarvis-green' : 'text-jarvis-red'}`}>{ok ? '✓' : '✗'}</span>
-    </div>
-  );
-}
-
-function LatencyRow({ label, ms }: { label: string; ms: number }) {
-  const color = ms < 10 ? 'text-jarvis-green' : ms < 50 ? 'text-jarvis-yellow' : 'text-jarvis-red';
-  const barColor = ms < 10 ? 'bg-jarvis-green' : ms < 50 ? 'bg-jarvis-yellow' : 'bg-jarvis-red';
-  return (
-    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-jarvis-bg-2/30 transition-colors">
-      <span className="text-xs font-mono text-jarvis-text-dim/80 w-20 shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 bg-jarvis-bg-3/50 rounded-full overflow-hidden">
-        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${Math.min(100, ms)}%` }} />
-      </div>
-      <span className={`text-xs font-mono font-bold ${color} w-12 text-right`}>{ms}ms</span>
-    </div>
-  );
-}
 
 function AnimatedCounter({ value, suffix = '', decimals = 0 }: { value: number; suffix?: string; decimals?: number }) {
   const [displayValue, setDisplayValue] = useState(0);
@@ -94,12 +67,17 @@ function AnimatedCounter({ value, suffix = '', decimals = 0 }: { value: number; 
 function PassFail({ ok, label }: { ok: boolean; label: string }) {
   return (
     <div className="flex items-center gap-2 group cursor-default">
-      <m.div
-        className={`w-2 h-2 rounded-full ${ok ? 'bg-jarvis-green' : 'bg-jarvis-red'}`}
-        animate={ok ? { scale: [1, 1.2, 1] } : undefined}
-        transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <span className="text-xs font-mono text-jarvis-text-dim group-hover:text-jarvis-text transition-colors duration-200">{label}</span>
+      <span className="relative flex items-center justify-center w-2 h-2">
+        <span className={`w-2 h-2 rounded-full ${ok ? 'bg-jarvis-green' : 'bg-jarvis-red'}`} />
+        {ok && (
+          <m.span
+            className="absolute inset-0 rounded-full bg-jarvis-green"
+            animate={{ scale: [1, 2], opacity: [0.3, 0] }}
+            transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
+          />
+        )}
+      </span>
+      <span className="text-xs font-mono text-jarvis-text-dim/70 group-hover:text-jarvis-text transition-colors duration-200">{label}</span>
     </div>
   );
 }
@@ -108,14 +86,14 @@ function PassFail({ ok, label }: { ok: boolean; label: string }) {
 
 function UtilizationBar({ label, pct, color, barColor }: { label: string; pct: number; color: string; barColor: string }) {
   return (
-    <div className="space-y-1">
-      <div className="flex justify-between text-xs font-mono">
+    <div className="jarvis-pulse-bar rounded-lg bg-jarvis-bg-2/40 p-3 border border-jarvis-border/20">
+      <div className="flex justify-between text-xs font-mono mb-1.5">
         <span className="text-jarvis-text-dim/80">{label}</span>
         <span className={color}>{Math.round(pct)}%</span>
       </div>
-      <div className="h-1.5 bg-jarvis-bg-3/50 rounded-full overflow-hidden">
+      <div className="jarvis-resource-bar">
         <m.div
-          className={`h-full rounded-full ${barColor}`}
+          className={`jarvis-resource-bar-fill ${barColor}`}
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
           transition={{ duration: 0.8, ease: 'easeOut' }}
@@ -125,7 +103,26 @@ function UtilizationBar({ label, pct, color, barColor }: { label: string; pct: n
   );
 }
 
-// ─── Feature pill grid ────────────────────────────────────────────────────────
+// ─── Metric Card ─────────────────────────────────────────────────────────────
+
+function MetricCard({ icon, label, children, sub }: { icon: React.ReactNode; label: string; children: React.ReactNode; sub?: string }) {
+  return (
+    <div className="jarvis-panel p-4 hover:border-jarvis-border-strong transition-all duration-300">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="text-jarvis-text-dim/70">{icon}</span>
+        <span className="metric-label text-jarvis-text-dim/60">{label}</span>
+      </div>
+      <div className="flex items-baseline gap-2">
+        {children}
+      </div>
+      {sub && (
+        <p className="text-jarvis-text-dim/40 text-[10px] font-mono mt-1 truncate">{sub}</p>
+      )}
+    </div>
+  );
+}
+
+// ─── Feature pill grid ───────────────────────────────────────────────────────
 
 const FEATURE_LABELS: Record<keyof FeatureFlags, string> = {
   chat: 'Chat',
@@ -145,14 +142,7 @@ const FEATURE_LABELS: Record<keyof FeatureFlags, string> = {
 const FEATURE_ROUTES: Partial<Record<keyof FeatureFlags, string>> = {
   chat: '/chat',
   voice: '/voice',
-  vision: '/vision',
-  memory: '/memory',
   tools: '/tools',
-  execution: '/execution',
-  search: '/search',
-  localControl: '/local-actions',
-  selfImprovement: '/self-improvement',
-  gpuMonitor: '/gpu',
 };
 
 const FEATURE_ICONS: Partial<Record<keyof FeatureFlags, React.ReactNode>> = {
@@ -171,10 +161,8 @@ const FEATURE_ICONS: Partial<Record<keyof FeatureFlags, React.ReactNode>> = {
 
 function FeaturePill({ name, enabled, route, icon }: { name: string; enabled: boolean; route?: string; icon?: React.ReactNode }) {
   const cls = [
-    'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-mono border transition-all duration-200',
-    enabled
-      ? 'border-jarvis-cyan/25 text-jarvis-cyan bg-jarvis-cyan/[0.04] hover:bg-jarvis-cyan/10 hover:border-jarvis-cyan/40 hover:shadow-[0_0_12px_rgba(0,212,255,0.1)] cursor-pointer'
-      : 'border-jarvis-border/30 text-jarvis-text-dim/40 opacity-40 cursor-default',
+    'jarvis-tag',
+    enabled ? '!border-jarvis-cyan/25 !text-jarvis-cyan hover:!border-jarvis-cyan/40' : 'opacity-40 cursor-default',
   ].join(' ');
 
   if (enabled && route) {
@@ -189,7 +177,7 @@ function QuickActionButton({ to, icon, label, color }: { to: string; icon: React
   return (
     <Link
       to={to}
-      className="group flex items-center gap-2.5 p-2.5 rounded-lg border border-jarvis-border/20 bg-jarvis-bg-2/30 transition-all duration-200 hover:border-jarvis-cyan/30 cursor-pointer"
+      className="jarvis-card-link flex items-center gap-2.5 p-2.5"
     >
       <div
         className="w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 group-hover:scale-110"
@@ -197,7 +185,7 @@ function QuickActionButton({ to, icon, label, color }: { to: string; icon: React
       >
         {icon}
       </div>
-      <span className="text-xs font-mono text-jarvis-text-dim group-hover:text-jarvis-text transition-colors duration-200">{label}</span>
+      <span className="text-xs font-mono text-jarvis-text-dim/80 group-hover:text-jarvis-text transition-colors duration-200">{label}</span>
     </Link>
   );
 }
@@ -212,35 +200,11 @@ const TABS = [
   { key: 'aicore', label: 'AI Core' },
 ];
 
-// ─── HUD Frame ───────────────────────────────────────────────────────────────
-
-function HudFrame({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return (
-    <div className={`jarvis-panel relative overflow-hidden ${className}`}>
-      {/* Corner brackets */}
-      <svg className="absolute top-0 left-0 w-4 h-4 pointer-events-none" viewBox="0 0 16 16">
-        <path d="M1,5 L1,1 L5,1" fill="none" stroke="rgba(0,229,255,0.4)" strokeWidth="1" />
-      </svg>
-      <svg className="absolute top-0 right-0 w-4 h-4 pointer-events-none" viewBox="0 0 16 16">
-        <path d="M11,1 L15,1 L15,5" fill="none" stroke="rgba(0,229,255,0.4)" strokeWidth="1" />
-      </svg>
-      <svg className="absolute bottom-0 left-0 w-4 h-4 pointer-events-none" viewBox="0 0 16 16">
-        <path d="M1,11 L1,15 L5,15" fill="none" stroke="rgba(0,229,255,0.4)" strokeWidth="1" />
-      </svg>
-      <svg className="absolute bottom-0 right-0 w-4 h-4 pointer-events-none" viewBox="0 0 16 16">
-        <path d="M11,15 L15,15 L15,11" fill="none" stroke="rgba(0,229,255,0.4)" strokeWidth="1" />
-      </svg>
-      {children}
-    </div>
-  );
-}
-
 // ─── DASHBOARD ───────────────────────────────────────────────────────────────
 
 export function DashboardPage() {
   const bootstrapReady = useBootstrapStore((s) => s.status === 'ready');
   const bootstrap = useBootstrapStore((s) => s.data);
-  const gpuStatus = useGpuStore((s) => s.status);
   const [activeTab, setActiveTab] = useState('overview');
 
   const { data: health } = useQuery<HealthResponse>({
@@ -273,13 +237,6 @@ export function DashboardPage() {
     gcTime: 5 * 60_000,
     refetchInterval: 30_000,
   });
-  const { data: memStats } = useQuery<{ totalEntries: number; entriesByLayer: Record<string, number>; avgImportance: number; avgConfidence: number }>({
-    queryKey: ['memory-fabric', 'stats'],
-    queryFn: () => apiClient.get('/memory-fabric/stats'),
-    enabled: bootstrapReady,
-    staleTime: 30_000,
-    gcTime: 5 * 60_000,
-  });
   const { data: evolStatus } = useQuery<{ totalTrials: number; improvedTrials: number; improvementRate: number; targetsTracked: number }>({
     queryKey: ['evolution', 'status'],
     queryFn: () => apiClient.get('/evolution/status'),
@@ -298,7 +255,7 @@ export function DashboardPage() {
   const activeProviderCount = providers?.available?.length ?? 0;
 
   return (
-    <div className="p-6 space-y-6 overflow-auto h-full">
+    <div className="p-6 space-y-5 overflow-auto h-full jarvis-scanlines">
       {/* ── Page Header ── */}
       <m.div
         initial={{ opacity: 0, y: -8 }}
@@ -308,9 +265,10 @@ export function DashboardPage() {
       >
         <div>
           <h1 className="text-jarvis-text-bright text-lg font-semibold tracking-wide flex items-center gap-3">
-            <span className="text-jarvis-cyan neon-cyan">COMMAND CENTER</span>
+            <span className="jarvis-text-gradient">COMMAND CENTER</span>
+            <span className="jarvis-cursor" />
           </h1>
-          <p className="text-jarvis-text-dim text-xs font-mono mt-0.5 tracking-wider">
+          <p className="text-jarvis-text-dim/50 text-xs font-mono mt-0.5 tracking-wider">
             {sys ? `v${sys.version} · ${sys.appEnv}` : 'AI Operating System'}
           </p>
         </div>
@@ -324,45 +282,41 @@ export function DashboardPage() {
       {/* ── HUD Center Row ── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         {/* Left: System Diagnostics */}
-        <HudFrame className="p-5 lg:col-span-2">
-          <div className="flex items-center gap-2 mb-4">
-            <Activity size={14} className="text-jarvis-cyan" />
-            <span className="text-jarvis-cyan text-xs font-mono font-bold tracking-[0.15em] uppercase">SYSTEM DIAGNOSTICS</span>
+        <div className="hud-frame p-5 lg:col-span-2">
+          <span className="hud-corner-bl" />
+          <span className="hud-corner-br" />
+          <div className="jarvis-panel-header !px-0 !pt-0 !border-b-0 mb-4">
+            <span className="jarvis-panel-title">
+              <Activity size={14} />
+              SYSTEM DIAGNOSTICS
+            </span>
           </div>
 
           {sys ? (
             <div className="space-y-3">
               {/* Main status */}
               <div className="flex items-center gap-3 p-3 rounded-lg bg-jarvis-bg-2/60 border border-jarvis-border/30">
-                <m.div
-                  className={`w-3 h-3 rounded-full ${sys.status === 'healthy' ? 'bg-jarvis-green' : sys.status === 'degraded' ? 'bg-jarvis-yellow' : 'bg-jarvis-red'}`}
-                  animate={sys.status === 'healthy' ? { scale: [1, 1.3, 1], opacity: [1, 0.6, 1] } : undefined}
-                  transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-                />
+                <span className="relative flex items-center justify-center w-3 h-3">
+                  <span className={`w-3 h-3 rounded-full ${
+                    sys.status === 'healthy' ? 'bg-jarvis-green' :
+                    sys.status === 'degraded' ? 'bg-jarvis-yellow' : 'bg-jarvis-red'
+                  }`} />
+                  {sys.status === 'healthy' && (
+                    <m.span
+                      className="absolute inset-0 rounded-full bg-jarvis-green"
+                      animate={{ scale: [1, 2.5], opacity: [0.3, 0] }}
+                      transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
+                    />
+                  )}
+                </span>
                 <div>
                   <p className="text-jarvis-text-bright text-sm font-mono capitalize">{sys.status}</p>
-                  <p className="text-jarvis-text-dim text-xs font-mono">{sys.appEnv} environment</p>
+                  <p className="text-jarvis-text-dim/60 text-xs font-mono">{sys.appEnv} environment</p>
                 </div>
               </div>
 
-              {/* Power Level / Systems Online / Core Temp */}
-              <div className="space-y-2.5">
-                <div className="flex items-center justify-between py-1.5 border-b border-jarvis-border/10">
-                  <span className="text-xs font-mono text-jarvis-text-dim/80">Power Level</span>
-                  <span className="text-xs font-mono text-jarvis-green">100%</span>
-                </div>
-                <div className="flex items-center justify-between py-1.5 border-b border-jarvis-border/10">
-                  <span className="text-xs font-mono text-jarvis-text-dim/80">Systems Online</span>
-                  <span className="text-xs font-mono text-jarvis-green">98%</span>
-                </div>
-                <div className="flex items-center justify-between py-1.5 border-b border-jarvis-border/10">
-                  <span className="text-xs font-mono text-jarvis-text-dim/80">Core Temp</span>
-                  <span className="text-xs font-mono text-jarvis-yellow">42°C</span>
-                </div>
-              </div>
-
-              {/* Service checks */}
-              <div className="grid grid-cols-2 gap-1.5 pt-1">
+              {/* Service checks grid */}
+              <div className="grid grid-cols-2 gap-1.5">
                 <PassFail ok={pythonOk} label="AI Service" />
                 <PassFail ok={redisOk} label="Redis" />
                 <PassFail ok={brokerOk} label="Broker" />
@@ -371,32 +325,32 @@ export function DashboardPage() {
 
               {health && (
                 <div className="flex items-center justify-between pt-2 border-t border-jarvis-border/20">
-                  <span className="text-[10px] font-mono text-jarvis-text-dim/60">Overall health</span>
-                  <span className={`text-xs font-mono ${health.status === 'pass' ? 'text-jarvis-green' : 'text-jarvis-red'}`}>
+                  <span className="text-[10px] font-mono text-jarvis-text-dim/40">Overall health</span>
+                  <span className={`text-xs font-mono font-semibold ${health.status === 'pass' ? 'text-jarvis-green' : 'text-jarvis-red'}`}>
                     {health.status}
                   </span>
                 </div>
               )}
             </div>
           ) : (
-            <div className="h-32 flex items-center justify-center">
-              <div className="text-jarvis-text-dim text-xs font-mono animate-pulse">Loading system data…</div>
-            </div>
+            <div className="jarvis-shimmer h-32 rounded-lg" />
           )}
-        </HudFrame>
+        </div>
 
         {/* Center: HUD Arc Reactor */}
-        <HudFrame className="lg:col-span-1 flex items-center justify-center py-6">
-          <HudVisualization size={220} />
-        </HudFrame>
+        <div className="hud-frame lg:col-span-1 flex items-center justify-center py-4">
+          <HudVisualization size={200} />
+        </div>
 
-        {/* Right: GPU Radar / Status */}
-        <HudFrame className="p-5 lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Cpu size={14} className="text-jarvis-purple" />
-              <span className="text-jarvis-purple text-xs font-mono font-bold tracking-[0.15em] uppercase">GPU COMPUTE</span>
-            </div>
+        {/* Right: GPU Compute */}
+        <div className="hud-frame p-5 lg:col-span-2">
+          <span className="hud-corner-bl" />
+          <span className="hud-corner-br" />
+          <div className="jarvis-panel-header !px-0 !pt-0 !border-b-0 mb-4">
+            <span className="jarvis-panel-title !text-jarvis-purple" style={{ textShadow: '0 0 8px rgba(155,89,255,0.4)' } as React.CSSProperties}>
+              <Cpu size={14} />
+              GPU COMPUTE
+            </span>
             {gpu && (
               <NeonBadge
                 color={gpu.cudaAvailable ? 'green' : 'dim'}
@@ -408,10 +362,10 @@ export function DashboardPage() {
 
           {gpu ? (
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-lg bg-jarvis-bg-2/50 border border-jarvis-border/30">
+              <div className="flex items-center justify-between p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
                 <div className="flex items-center gap-2">
-                  <CircuitBoard size={14} className="text-jarvis-text-dim" />
-                  <span className="text-xs font-mono text-jarvis-text-dim">Device</span>
+                  <CircuitBoard size={14} className="text-jarvis-text-dim/60" />
+                  <span className="text-xs font-mono text-jarvis-text-dim/60">Device</span>
                 </div>
                 <span className="text-xs font-mono text-jarvis-text-bright truncate ml-2">
                   {gpu.activeDevice || 'CPU Fallback'}
@@ -419,12 +373,9 @@ export function DashboardPage() {
               </div>
 
               {gpu.cudaAvailable && (
-                <div className="space-y-2.5">
-                  <UtilizationBar label="GPU" pct={gpuStatus?.utilization.gpuPercent ?? 0} color="text-jarvis-cyan" barColor="bg-jarvis-cyan" />
+                <div className="space-y-2">
                   <UtilizationBar label="Memory" pct={(gpu.vram.usedMb / gpu.vram.totalMb) * 100} color="text-jarvis-blue" barColor="bg-jarvis-blue" />
-                  <div className="flex justify-between text-[10px] font-mono text-jarvis-text-dim/60 pt-1 border-t border-jarvis-border/20">
-                    <span>Temp: {gpuStatus?.utilization.temperatureC.toFixed(0) ?? '—'}°C</span>
-                    <span>Power: {gpuStatus?.utilization.powerWatts.toFixed(0) ?? '—'}W</span>
+                  <div className="flex justify-between text-[10px] font-mono text-jarvis-text-dim/40 pt-1">
                     <span>VRAM: {gpu.vram.usedMb > 1024 ? `${(gpu.vram.usedMb / 1024).toFixed(1)}G` : `${gpu.vram.usedMb.toFixed(0)}M`} / {gpu.vram.totalMb > 1024 ? `${(gpu.vram.totalMb / 1024).toFixed(1)}G` : `${gpu.vram.totalMb.toFixed(0)}M`}</span>
                   </div>
                 </div>
@@ -440,11 +391,9 @@ export function DashboardPage() {
               )}
             </div>
           ) : (
-            <div className="h-24 flex items-center justify-center">
-              <div className="text-jarvis-text-dim text-xs font-mono animate-pulse">Loading GPU data…</div>
-            </div>
+            <div className="jarvis-shimmer h-24 rounded-lg" />
           )}
-        </HudFrame>
+        </div>
       </div>
 
       {/* ── Metric Cards ── */}
@@ -454,464 +403,464 @@ export function DashboardPage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.1, duration: 0.3 }}
       >
-        <HudFrame className="p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Server size={14} className="text-jarvis-cyan" />
-            <span className="metric-label text-jarvis-text-dim">Services</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <AnimatedCounter value={allServicesOk ? 3 : 0} suffix={`/${3}`} />
-          </div>
-          <p className="text-jarvis-text-dim/60 text-[10px] font-mono mt-1">{allServicesOk ? 'All online' : 'Some degraded'}</p>
-        </HudFrame>
+        <MetricCard icon={<Server size={14} />} label="Services" sub={allServicesOk ? 'All online' : 'Some degraded'}>
+          <AnimatedCounter value={allServicesOk ? 3 : 0} suffix="/3" />
+        </MetricCard>
 
-        <HudFrame className="p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <Cpu size={14} className={gpuStatus && gpuStatus.utilization.gpuPercent > 80 ? 'text-jarvis-red' : 'text-jarvis-cyan'} />
-            <span className="metric-label text-jarvis-text-dim">GPU</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <AnimatedCounter value={gpuStatus ? Math.round(gpuStatus.utilization.gpuPercent) : 0} suffix="%" />
-          </div>
-          <p className="text-jarvis-text-dim/60 text-[10px] font-mono mt-1">{gpuStatus ? `${gpuStatus.activeDevice}` : 'N/A'}</p>
-        </HudFrame>
+        <MetricCard
+          icon={<Cpu size={14} />}
+          label="GPU"
+          sub={gpu ? `${gpu.activeDevice}` : 'N/A'}
+        >
+          <AnimatedCounter value={gpu ? Math.round((gpu.vram.usedMb / gpu.vram.totalMb) * 100) : 0} suffix="%" />
+        </MetricCard>
 
-        <HudFrame className="p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <HardDrive size={14} className="text-jarvis-purple" />
-            <span className="metric-label text-jarvis-text-dim">VRAM</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <AnimatedCounter value={gpu ? +(gpu.vram.usedMb / 1024).toFixed(1) : 0} suffix={`/${gpu ? (gpu.vram.totalMb / 1024).toFixed(1) : '0'}G`} decimals={1} />
-          </div>
-          <p className="text-jarvis-text-dim/60 text-[10px] font-mono mt-1">{gpu ? `${(gpu.vram.usedMb / gpu.vram.totalMb * 100).toFixed(0)}% utilized` : 'N/A'}</p>
-        </HudFrame>
+        <MetricCard
+          icon={<HardDrive size={14} />}
+          label="VRAM"
+          sub={gpu ? `${(gpu.vram.usedMb / gpu.vram.totalMb * 100).toFixed(0)}% utilized` : 'N/A'}
+        >
+          <AnimatedCounter
+            value={gpu ? +(gpu.vram.usedMb / 1024).toFixed(1) : 0}
+            suffix={`/${gpu ? (gpu.vram.totalMb / 1024).toFixed(1) : '0'}G`}
+            decimals={1}
+          />
+        </MetricCard>
 
-        <HudFrame className="p-4">
-          <div className="flex items-center gap-2 mb-2">
-            <BarChart3 size={14} className="text-jarvis-green" />
-            <span className="metric-label text-jarvis-text-dim">Provider</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <AnimatedCounter value={activeProviderCount} suffix="" />
-            <span className="text-xs font-mono text-jarvis-text-dim/60">active</span>
-          </div>
-          <p className="text-jarvis-text-dim/60 text-[10px] font-mono mt-1">{providers?.primary?.name ?? 'No provider'}</p>
-        </HudFrame>
+        <MetricCard icon={<BarChart3 size={14} />} label="Provider" sub={providers?.primary?.name ?? 'No provider'}>
+          <AnimatedCounter value={activeProviderCount} suffix="" />
+          <span className="text-xs font-mono text-jarvis-text-dim/40">active</span>
+        </MetricCard>
       </m.div>
 
-      {/* ── Bottom: Quick Actions + Features + Tab Nav ── */}
-      <div className="space-y-4">
-        {/* Tab Navigation */}
-        <HudFrame className="p-3">
-          <div className="flex items-center gap-1">
-            {TABS.map((tab) => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`px-4 py-2 rounded-lg text-xs font-mono tracking-wider transition-all duration-200 cursor-pointer ${
-                  activeTab === tab.key
-                    ? 'text-jarvis-cyan bg-jarvis-cyan/10 border border-jarvis-cyan/30'
-                    : 'text-jarvis-text-dim/60 hover:text-jarvis-text hover:bg-jarvis-bg-2/50 border border-transparent'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-            <div className="flex-1" />
-            <span className="text-[10px] font-mono text-jarvis-text-dim/30 tracking-wider">
-              {activeTab.toUpperCase()} MODE
-            </span>
-          </div>
-        </HudFrame>
-
-        {/* Tab Content */}
-        {activeTab === 'overview' && (
-          <m.div
-            className="space-y-4"
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            {/* Quick Actions */}
-            <div className="grid grid-cols-4 gap-3">
-              <QuickActionButton to="/chat" icon={<MessageSquare size={16} />} label="Chat" color="var(--jarvis-cyan)" />
-              <QuickActionButton to="/search" icon={<Search size={16} />} label="Search" color="var(--jarvis-blue)" />
-              <QuickActionButton to="/memory" icon={<Database size={16} />} label="Memory" color="var(--jarvis-green)" />
-              <QuickActionButton to="/gpu" icon={<Cpu size={16} />} label="GPU" color="var(--jarvis-purple)" />
-              <QuickActionButton to="/swarm" icon={<Users size={16} />} label="Swarm" color="var(--jarvis-purple)" />
-              <QuickActionButton to="/memory-fabric" icon={<Layers size={16} />} label="Memory Fab" color="var(--jarvis-blue)" />
-              <QuickActionButton to="/self-evolution" icon={<FlaskConical size={16} />} label="Evolution" color="var(--jarvis-green)" />
-              <QuickActionButton to="/external-apis" icon={<Globe size={16} />} label="APIs" color="var(--jarvis-yellow)" />
-            </div>
-
-            {/* Features */}
-            {features && (
-              <HudFrame className="p-5">
-                <div className="flex items-center gap-2 mb-4">
-                  <Boxes size={14} className="text-jarvis-cyan" />
-                  <span className="text-jarvis-cyan text-xs font-mono font-bold tracking-[0.15em] uppercase">FEATURES</span>
-                  <span className="text-jarvis-text-dim text-[10px] font-mono ml-auto">{Object.values(features).filter(Boolean).length} enabled</span>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {(Object.entries(features) as [keyof FeatureFlags, boolean][]).map(([key, enabled]) => (
-                    <FeaturePill
-                      key={key}
-                      name={FEATURE_LABELS[key]}
-                      enabled={enabled}
-                      route={FEATURE_ROUTES[key]}
-                      icon={FEATURE_ICONS[key]}
-                    />
-                  ))}
-                </div>
-              </HudFrame>
-            )}
-
-            {/* ── v3 Architecture Status ── */}
-            <HudFrame className="p-5">
-              <div className="flex items-center gap-2 mb-4">
-                <Dna size={14} className="text-jarvis-purple" />
-                <span className="text-jarvis-purple text-xs font-mono font-bold tracking-[0.15em] uppercase">V3 ARCHITECTURE</span>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* Swarm */}
-                <Link to="/swarm" className="p-4 rounded-lg border border-jarvis-border/20 bg-jarvis-bg-2/30 hover:border-jarvis-purple/40 hover:bg-jarvis-bg-2/60 transition-all duration-200 group">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Users size={14} className="text-jarvis-purple" />
-                    <span className="text-xs font-mono text-jarvis-text-bright group-hover:text-jarvis-purple transition-colors">Swarm Manager</span>
-                  </div>
-                  <div className="flex items-baseline gap-2 mt-3">
-                    <span className="text-lg font-mono font-bold text-jarvis-text-bright">{swarmStatus?.totalAgents ?? '—'}</span>
-                    <span className="text-[10px] font-mono text-jarvis-text-dim/60">agents</span>
-                  </div>
-                  <div className="flex items-center gap-3 mt-1 text-[10px] font-mono text-jarvis-text-dim/60">
-                    <span>{swarmStatus?.totalSwarms ?? '—'} swarms</span>
-                    <span className="flex items-center gap-1">
-                      <span className={`w-1.5 h-1.5 rounded-full ${swarmHealth?.health?.every(h => h.isHealthy) ? 'bg-jarvis-green' : 'bg-jarvis-yellow'}`} />
-                      {swarmHealth?.health?.every(h => h.isHealthy) ? 'Healthy' : 'Mixed'}
-                    </span>
-                  </div>
-                </Link>
-
-                {/* Memory Fabric */}
-                <Link to="/memory-fabric" className="p-4 rounded-lg border border-jarvis-border/20 bg-jarvis-bg-2/30 hover:border-jarvis-blue/40 hover:bg-jarvis-bg-2/60 transition-all duration-200 group">
-                  <div className="flex items-center gap-2 mb-2">
-                    <Layers size={14} className="text-jarvis-blue" />
-                    <span className="text-xs font-mono text-jarvis-text-bright group-hover:text-jarvis-blue transition-colors">Memory Fabric</span>
-                  </div>
-                  <div className="flex items-baseline gap-2 mt-3">
-                    <span className="text-lg font-mono font-bold text-jarvis-text-bright">{memStats?.totalEntries ?? '—'}</span>
-                    <span className="text-[10px] font-mono text-jarvis-text-dim/60">entries</span>
-                  </div>
-                  <div className="flex items-center gap-3 mt-1 text-[10px] font-mono text-jarvis-text-dim/60">
-                    {memStats?.entriesByLayer && Object.entries(memStats.entriesByLayer).map(([layer, count]) => (
-                      <span key={layer} className="capitalize">{layer}: {count}</span>
-                    ))}
-                  </div>
-                </Link>
-
-                {/* Self-Evolution */}
-                <Link to="/self-evolution" className="p-4 rounded-lg border border-jarvis-border/20 bg-jarvis-bg-2/30 hover:border-jarvis-green/40 hover:bg-jarvis-bg-2/60 transition-all duration-200 group">
-                  <div className="flex items-center gap-2 mb-2">
-                    <FlaskConical size={14} className="text-jarvis-green" />
-                    <span className="text-xs font-mono text-jarvis-text-bright group-hover:text-jarvis-green transition-colors">Self-Evolution</span>
-                  </div>
-                  <div className="flex items-baseline gap-2 mt-3">
-                    <span className="text-lg font-mono font-bold text-jarvis-text-bright">{evolStatus?.totalTrials ?? '—'}</span>
-                    <span className="text-[10px] font-mono text-jarvis-text-dim/60">trials</span>
-                  </div>
-                  <div className="flex items-center gap-3 mt-1 text-[10px] font-mono text-jarvis-text-dim/60">
-                    <span className="flex items-center gap-1">
-                      <TrendingUp size={10} className={((evolStatus?.improvementRate ?? 0) > 0.5) ? 'text-jarvis-green' : 'text-jarvis-yellow'} />
-                      {(evolStatus?.improvementRate ?? 0) > 0
-                        ? `${((evolStatus?.improvementRate ?? 0) * 100).toFixed(0)}% improved`
-                        : 'No data'}
-                    </span>
-                  </div>
-                </Link>
-              </div>
-            </HudFrame>
-          </m.div>
-        )}
-
-        {activeTab === 'diagnostics' && (
-          <HudFrame className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Service Latency */}
-              <div>
-                <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Service Latency</p>
-                <div className="space-y-2.5">
-                  <LatencyRow label="Gateway" ms={health?.checks?.['gateway']?.latencyMs ?? 12} />
-                  <LatencyRow label="AI Service" ms={health?.checks?.['python-ai-service']?.latencyMs ?? 24} />
-                  <LatencyRow label="Broker" ms={health?.checks?.['rust-broker']?.latencyMs ?? 8} />
-                  <LatencyRow label="Redis" ms={health?.checks?.['redis']?.latencyMs ?? 3} />
-                </div>
-              </div>
-
-              {/* Uptime & Resources */}
-              <div>
-                <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Resources</p>
-                <div className="space-y-3">
-                  <div className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
-                    <p className="text-jarvis-text-dim text-[10px] font-mono">Uptime</p>
-                    <p className="text-jarvis-text-bright text-sm font-mono mt-0.5">{sys?.uptime ?? '—'}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
-                    <p className="text-jarvis-text-dim text-[10px] font-mono">API Version</p>
-                    <p className="text-jarvis-text-bright text-sm font-mono mt-0.5">{sys?.apiVersion ?? '—'}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
-                    <p className="text-jarvis-text-dim text-[10px] font-mono">Environment</p>
-                    <p className="text-jarvis-text-bright text-sm font-mono mt-0.5 capitalize">{sys?.appEnv ?? '—'}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Service Dependencies */}
-              <div>
-                <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Dependency Graph</p>
-                <div className="space-y-2">
-                  {[
-                    { name: 'Python AI', deps: 'Redis, Broker', ok: pythonOk },
-                    { name: 'Go Gateway', deps: 'Python AI, Redis', ok: gatewayOk },
-                    { name: 'Rust Broker', deps: 'Redis', ok: brokerOk },
-                    { name: 'Redis Cache', deps: '—', ok: redisOk },
-                  ].map((dep) => (
-                    <div key={dep.name} className="flex items-center gap-3 p-2.5 rounded-lg bg-jarvis-bg-2/30 border border-jarvis-border/20">
-                      <span className={`w-1.5 h-1.5 rounded-full ${dep.ok ? 'bg-jarvis-green' : 'bg-jarvis-red'}`} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-xs font-mono text-jarvis-text-bright truncate">{dep.name}</p>
-                        <p className="text-[10px] font-mono text-jarvis-text-dim/60">depends on: {dep.deps}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </HudFrame>
-        )}
-
-        {activeTab === 'network' && (
-          <HudFrame className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Endpoints */}
-              <div>
-                <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">API Endpoints</p>
-                <div className="space-y-1.5">
-                  {[
-                    { method: 'GET', path: '/api/health', status: '200' },
-                    { method: 'GET', path: '/api/bootstrap', status: '200' },
-                    { method: 'POST', path: '/api/chat/send', status: '200' },
-                    { method: 'GET', path: '/api/gpu/status', status: '200' },
-                    { method: 'POST', path: '/api/voice/stt', status: '200' },
-                    { method: 'WS', path: '/ws/chat', status: 'connected' },
-                  ].map((ep) => (
-                    <div key={ep.path} className="flex items-center gap-3 p-2 rounded-lg hover:bg-jarvis-bg-2/30 transition-colors">
-                      <span className={`text-[10px] font-mono font-bold w-12 shrink-0 ${
-                        ep.method === 'WS' ? 'text-jarvis-purple' : 'text-jarvis-green'
-                      }`}>{ep.method}</span>
-                      <span className="text-xs font-mono text-jarvis-text-dim/80 truncate">{ep.path}</span>
-                      <span className="text-[10px] font-mono text-jarvis-cyan/60 ml-auto">{ep.status}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Traffic */}
-              <div>
-                <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Traffic</p>
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { label: 'Requests/min', value: '127', color: 'text-jarvis-cyan' },
-                    { label: 'Avg latency', value: '42ms', color: 'text-jarvis-green' },
-                    { label: 'P99 latency', value: '186ms', color: 'text-jarvis-yellow' },
-                    { label: 'Error rate', value: '0.3%', color: 'text-jarvis-green' },
-                  ].map((stat) => (
-                    <div key={stat.label} className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
-                      <p className="text-jarvis-text-dim text-[10px] font-mono">{stat.label}</p>
-                      <p className={`text-sm font-mono mt-0.5 font-bold ${stat.color}`}>{stat.value}</p>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-4 p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
-                  <p className="text-jarvis-text-dim text-[10px] font-mono mb-2">Bandwidth</p>
-                  <div className="space-y-1.5">
-                    <div>
-                      <div className="flex justify-between text-xs font-mono">
-                        <span className="text-jarvis-text-dim/80">Inbound</span>
-                        <span className="text-jarvis-cyan">2.4 MB/s</span>
-                      </div>
-                      <div className="h-1.5 bg-jarvis-bg-3/50 rounded-full overflow-hidden mt-1">
-                        <div className="h-full rounded-full bg-jarvis-cyan" style={{ width: '34%' }} />
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-xs font-mono">
-                        <span className="text-jarvis-text-dim/80">Outbound</span>
-                        <span className="text-jarvis-blue">1.8 MB/s</span>
-                      </div>
-                      <div className="h-1.5 bg-jarvis-bg-3/50 rounded-full overflow-hidden mt-1">
-                        <div className="h-full rounded-full bg-jarvis-blue" style={{ width: '22%' }} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </HudFrame>
-        )}
-
-        {activeTab === 'security' && (
-          <HudFrame className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Status */}
-              <div>
-                <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">System Security</p>
-                <div className="space-y-3">
-                  <SecurityCheck label="API Key Rotation" ok />
-                  <SecurityCheck label="Rate Limiting" ok />
-                  <SecurityCheck label="CORS Policy" ok />
-                  <SecurityCheck label="Input Sanitization" ok />
-                  <SecurityCheck label="Session Encryption" ok />
-                  <SecurityCheck label="Sandbox Isolation" ok />
-                </div>
-              </div>
-
-              {/* Recent Events */}
-              <div>
-                <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Recent Events</p>
-                <div className="space-y-2">
-                  {[
-                    { event: 'Authentication OK', time: '2m ago', type: 'ok' },
-                    { event: 'Rate limit check', time: '5m ago', type: 'ok' },
-                    { event: 'Session refreshed', time: '12m ago', type: 'ok' },
-                    { event: 'New connection', time: '18m ago', type: 'info' },
-                    { event: 'Config audit', time: '25m ago', type: 'ok' },
-                  ].map((evt) => (
-                    <div key={evt.event} className="flex items-center gap-2 p-2 rounded-lg hover:bg-jarvis-bg-2/30 transition-colors">
-                      <span className={`w-1.5 h-1.5 rounded-full ${
-                        evt.type === 'ok' ? 'bg-jarvis-green' : 'bg-jarvis-cyan'
-                      }`} />
-                      <span className="text-xs font-mono text-jarvis-text-dim/80 flex-1">{evt.event}</span>
-                      <span className="text-[10px] font-mono text-jarvis-text-dim/40">{evt.time}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Shield Status */}
-              <div className="flex flex-col items-center justify-center p-4">
-                <m.div
-                  className="w-20 h-20 rounded-full border-2 border-jarvis-green/30 flex items-center justify-center mb-4"
-                  animate={{ boxShadow: ['0 0 20px rgba(0,255,136,0.1)', '0 0 40px rgba(0,255,136,0.2)', '0 0 20px rgba(0,255,136,0.1)'] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-                >
-                  <Shield size={36} className="text-jarvis-green" />
-                </m.div>
-                <p className="text-jarvis-green text-sm font-mono font-bold tracking-wider">ALL CLEAR</p>
-                <p className="text-jarvis-text-dim text-[10px] font-mono mt-1">No threats detected</p>
-                <div className="mt-4 flex items-center gap-2 text-jarvis-text-dim/50 text-[10px] font-mono">
-                  <span className="w-1 h-1 rounded-full bg-jarvis-green animate-pulse" />
-                  Last scan: just now
-                </div>
-              </div>
-            </div>
-          </HudFrame>
-        )}
-
-        {activeTab === 'aicore' && (
-          <HudFrame className="p-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Model Stats */}
-              <div>
-                <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Model Activity</p>
-                <div className="space-y-2.5">
-                  {[
-                    { model: 'Claude 3.5 Sonnet', calls: 42, pct: 65 },
-                    { model: 'GPT-4o', calls: 18, pct: 28 },
-                    { model: 'Local LLM', calls: 5, pct: 7 },
-                  ].map((m) => (
-                    <div key={m.model} className="p-2.5 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
-                      <div className="flex justify-between text-xs font-mono mb-1">
-                        <span className="text-jarvis-text-dim/80 truncate">{m.model}</span>
-                        <span className="text-jarvis-text-bright">{m.calls}</span>
-                      </div>
-                      <div className="h-1 bg-jarvis-bg-3/50 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full bg-gradient-to-r from-jarvis-cyan to-jarvis-blue" style={{ width: `${m.pct}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Token Usage */}
-              <div>
-                <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Token Usage</p>
-                <div className="grid grid-cols-1 gap-3">
-                  <div className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
-                    <p className="text-jarvis-text-dim text-[10px] font-mono">Total Input Tokens</p>
-                    <p className="text-jarvis-cyan text-lg font-mono font-bold mt-0.5">847.2k</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
-                    <p className="text-jarvis-text-dim text-[10px] font-mono">Total Output Tokens</p>
-                    <p className="text-jarvis-green text-lg font-mono font-bold mt-0.5">124.5k</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
-                    <p className="text-jarvis-text-dim text-[10px] font-mono">Avg Tokens / Request</p>
-                    <p className="text-jarvis-purple text-lg font-mono font-bold mt-0.5">1,247</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Brain Activity */}
-              <div>
-                <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Sector Brain Load</p>
-                <div className="space-y-2">
-                  {[
-                    { brain: 'Coding', pct: 58, color: 'bg-jarvis-cyan' },
-                    { brain: 'Research', pct: 22, color: 'bg-jarvis-blue' },
-                    { brain: 'Creative', pct: 12, color: 'bg-jarvis-purple' },
-                    { brain: 'Security', pct: 8, color: 'bg-jarvis-red' },
-                  ].map((b) => (
-                    <div key={b.brain}>
-                      <div className="flex justify-between text-xs font-mono mb-0.5">
-                        <span className="text-jarvis-text-dim/80">{b.brain}</span>
-                        <span className="text-jarvis-text-dim/60">{b.pct}%</span>
-                      </div>
-                      <div className="h-1.5 bg-jarvis-bg-3/50 rounded-full overflow-hidden">
-                        <div className={`h-full rounded-full ${b.color}`} style={{ width: `${b.pct}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-4 p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
-                  <p className="text-jarvis-text-dim text-[10px] font-mono">Active Router Strategy</p>
-                  <p className="text-jarvis-text-bright text-xs font-mono mt-0.5">Smart Router v2 — confidence-based dispatch</p>
-                </div>
-              </div>
-            </div>
-          </HudFrame>
-        )}
+      {/* ── Tab Navigation ── */}
+      <div className="jarvis-panel p-1.5">
+        <div className="flex items-center gap-1">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 rounded-lg text-xs font-mono tracking-wider transition-all duration-200 cursor-pointer ${
+                activeTab === tab.key
+                  ? 'text-jarvis-cyan bg-jarvis-cyan/10 border border-jarvis-cyan/30 shadow-[0_0_12px_rgba(0,212,255,0.06)]'
+                  : 'text-jarvis-text-dim/50 hover:text-jarvis-text hover:bg-jarvis-bg-2/40 border border-transparent'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+          <div className="flex-1" />
+          <span className="text-[10px] font-mono text-jarvis-text-dim/20 tracking-wider mr-2">
+            {activeTab.toUpperCase()} MODE
+          </span>
+        </div>
       </div>
 
-      {/* Status bar at bottom */}
-      <HudFrame className="p-4">
+      {/* ── Tab Content ── */}
+      {activeTab === 'overview' && (
+        <m.div
+          className="space-y-4"
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          {/* Quick Actions */}
+          <div>
+            <div className="jarvis-panel-header !border-b-0 !px-0 !pt-0 mb-3">
+              <span className="jarvis-panel-title !text-xs">Quick Actions</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <QuickActionButton to="/chat" icon={<MessageSquare size={16} />} label="Chat" color="var(--jarvis-cyan)" />
+              <QuickActionButton to="/voice" icon={<Mic size={16} />} label="Voice" color="var(--jarvis-blue)" />
+            </div>
+          </div>
+
+          {/* Features */}
+          {features && (
+            <div className="jarvis-panel p-5">
+              <div className="jarvis-panel-header !px-0 !pt-0 !border-b-0 mb-4">
+                <span className="jarvis-panel-title">
+                  <Boxes size={14} />
+                  FEATURES
+                </span>
+                <span className="text-jarvis-text-dim/40 text-[10px] font-mono">{Object.values(features).filter(Boolean).length} enabled</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(Object.entries(features) as [keyof FeatureFlags, boolean][]).map(([key, enabled]) => (
+                  <FeaturePill
+                    key={key}
+                    name={FEATURE_LABELS[key]}
+                    enabled={enabled}
+                    route={FEATURE_ROUTES[key]}
+                    icon={FEATURE_ICONS[key]}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* ── v3 Architecture Status ── */}
+          <div className="jarvis-panel p-5">
+            <div className="jarvis-panel-header !px-0 !pt-0 !border-b-0 mb-4">
+              <span className="jarvis-panel-title !text-jarvis-purple" style={{ textShadow: '0 0 8px rgba(155,89,255,0.4)' } as React.CSSProperties}>
+                <Dna size={14} />
+                V3 ARCHITECTURE
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Swarm */}
+              <Link to="/swarm" className="jarvis-card-link p-4 group">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-lg bg-jarvis-purple/10 flex items-center justify-center">
+                    <Users size={14} className="text-jarvis-purple" />
+                  </div>
+                  <span className="text-xs font-mono text-jarvis-text-bright group-hover:text-jarvis-purple transition-colors">Swarm Manager</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xl font-mono font-bold text-jarvis-text-bright">{swarmStatus?.totalAgents ?? '—'}</span>
+                  <span className="text-[10px] font-mono text-jarvis-text-dim/40">agents</span>
+                </div>
+                <div className="flex items-center gap-3 mt-1 text-[10px] font-mono text-jarvis-text-dim/40">
+                  <span>{swarmStatus?.totalSwarms ?? '—'} swarms</span>
+                  <span className="flex items-center gap-1">
+                    <span className={`w-1.5 h-1.5 rounded-full ${swarmHealth?.health?.every(h => h.isHealthy) ? 'bg-jarvis-green' : 'bg-jarvis-yellow'}`} />
+                    {swarmHealth?.health?.every(h => h.isHealthy) ? 'Healthy' : 'Mixed'}
+                  </span>
+                </div>
+              </Link>
+
+              {/* Self-Evolution */}
+              <Link to="/self-evolution" className="jarvis-card-link p-4 group">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-7 h-7 rounded-lg bg-jarvis-green/10 flex items-center justify-center">
+                    <FlaskConical size={14} className="text-jarvis-green" />
+                  </div>
+                  <span className="text-xs font-mono text-jarvis-text-bright group-hover:text-jarvis-green transition-colors">Self-Evolution</span>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-xl font-mono font-bold text-jarvis-text-bright">{evolStatus?.totalTrials ?? '—'}</span>
+                  <span className="text-[10px] font-mono text-jarvis-text-dim/40">trials</span>
+                </div>
+                <div className="flex items-center gap-3 mt-1 text-[10px] font-mono text-jarvis-text-dim/40">
+                  <span className="flex items-center gap-1">
+                    <TrendingUp size={10} className={((evolStatus?.improvementRate ?? 0) > 0.5) ? 'text-jarvis-green' : 'text-jarvis-yellow'} />
+                    {(evolStatus?.improvementRate ?? 0) > 0
+                      ? `${((evolStatus?.improvementRate ?? 0) * 100).toFixed(0)}% improved`
+                      : 'No data'}
+                  </span>
+                </div>
+              </Link>
+            </div>
+          </div>
+        </m.div>
+      )}
+
+      {activeTab === 'diagnostics' && (
+        <div className="jarvis-panel p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Service Latency */}
+            <div>
+              <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Service Latency</p>
+              <div className="space-y-2">
+                <LatencyRow label="Gateway" ms={health?.checks?.['gateway']?.latencyMs ?? 12} />
+                <LatencyRow label="AI Service" ms={health?.checks?.['python-ai-service']?.latencyMs ?? 24} />
+                <LatencyRow label="Broker" ms={health?.checks?.['rust-broker']?.latencyMs ?? 8} />
+                <LatencyRow label="Redis" ms={health?.checks?.['redis']?.latencyMs ?? 3} />
+              </div>
+            </div>
+
+            {/* Resources */}
+            <div>
+              <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Resources</p>
+              <div className="space-y-3">
+                <div className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
+                  <p className="text-jarvis-text-dim/60 text-[10px] font-mono">Uptime</p>
+                  <p className="text-jarvis-text-bright text-sm font-mono mt-0.5">{sys?.uptime ?? '—'}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
+                  <p className="text-jarvis-text-dim/60 text-[10px] font-mono">API Version</p>
+                  <p className="text-jarvis-text-bright text-sm font-mono mt-0.5">{sys?.apiVersion ?? '—'}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
+                  <p className="text-jarvis-text-dim/60 text-[10px] font-mono">Environment</p>
+                  <p className="text-jarvis-text-bright text-sm font-mono mt-0.5 capitalize">{sys?.appEnv ?? '—'}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Dependencies */}
+            <div>
+              <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Dependency Graph</p>
+              <div className="space-y-2">
+                {[
+                  { name: 'Python AI', deps: 'Redis, Broker', ok: pythonOk },
+                  { name: 'Go Gateway', deps: 'Python AI, Redis', ok: gatewayOk },
+                  { name: 'Rust Broker', deps: 'Redis', ok: brokerOk },
+                  { name: 'Redis Cache', deps: '—', ok: redisOk },
+                ].map((dep) => (
+                  <div key={dep.name} className="flex items-center gap-3 p-2.5 rounded-lg bg-jarvis-bg-2/30 border border-jarvis-border/20">
+                    <span className={`w-1.5 h-1.5 rounded-full ${dep.ok ? 'bg-jarvis-green' : 'bg-jarvis-red'}`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-mono text-jarvis-text-bright truncate">{dep.name}</p>
+                      <p className="text-[10px] font-mono text-jarvis-text-dim/40">depends on: {dep.deps}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'network' && (
+        <div className="jarvis-panel p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Endpoints */}
+            <div>
+              <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">API Endpoints</p>
+              <div className="space-y-1">
+                {[
+                  { method: 'GET', path: '/api/health', status: '200' },
+                  { method: 'GET', path: '/api/bootstrap', status: '200' },
+                  { method: 'POST', path: '/api/chat/send', status: '200' },
+                  { method: 'GET', path: '/api/gpu/status', status: '200' },
+                  { method: 'POST', path: '/api/voice/stt', status: '200' },
+                  { method: 'WS', path: '/ws/chat', status: 'connected' },
+                ].map((ep) => (
+                  <div key={ep.path} className="flex items-center gap-3 p-2 rounded-lg hover:bg-jarvis-bg-2/30 transition-colors">
+                    <span className={`text-[10px] font-mono font-bold w-12 shrink-0 ${
+                      ep.method === 'WS' ? 'text-jarvis-purple' : 'text-jarvis-green'
+                    }`}>{ep.method}</span>
+                    <span className="text-xs font-mono text-jarvis-text-dim/70 truncate">{ep.path}</span>
+                    <span className="text-[10px] font-mono text-jarvis-cyan/50 ml-auto">{ep.status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Traffic */}
+            <div>
+              <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Traffic</p>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { label: 'Requests/min', value: '127', color: 'text-jarvis-cyan' },
+                  { label: 'Avg latency', value: '42ms', color: 'text-jarvis-green' },
+                  { label: 'P99 latency', value: '186ms', color: 'text-jarvis-yellow' },
+                  { label: 'Error rate', value: '0.3%', color: 'text-jarvis-green' },
+                ].map((stat) => (
+                  <div key={stat.label} className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
+                    <p className="text-jarvis-text-dim/60 text-[10px] font-mono">{stat.label}</p>
+                    <p className={`text-sm font-mono mt-0.5 font-bold ${stat.color}`}>{stat.value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
+                <p className="text-jarvis-text-dim/60 text-[10px] font-mono mb-2">Bandwidth</p>
+                <div className="space-y-2">
+                  <div>
+                    <div className="flex justify-between text-xs font-mono">
+                      <span className="text-jarvis-text-dim/70">Inbound</span>
+                      <span className="text-jarvis-cyan">2.4 MB/s</span>
+                    </div>
+                    <div className="jarvis-resource-bar mt-1">
+                      <div className="jarvis-resource-bar-fill bg-jarvis-cyan" style={{ width: '34%' }} />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs font-mono">
+                      <span className="text-jarvis-text-dim/70">Outbound</span>
+                      <span className="text-jarvis-blue">1.8 MB/s</span>
+                    </div>
+                    <div className="jarvis-resource-bar mt-1">
+                      <div className="jarvis-resource-bar-fill bg-jarvis-blue" style={{ width: '22%' }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'security' && (
+        <div className="jarvis-panel p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Status */}
+            <div>
+              <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">System Security</p>
+              <div className="space-y-1">
+                <SecurityCheck label="API Key Rotation" ok />
+                <SecurityCheck label="Rate Limiting" ok />
+                <SecurityCheck label="CORS Policy" ok />
+                <SecurityCheck label="Input Sanitization" ok />
+                <SecurityCheck label="Session Encryption" ok />
+                <SecurityCheck label="Sandbox Isolation" ok />
+              </div>
+            </div>
+
+            {/* Recent Events */}
+            <div>
+              <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Recent Events</p>
+              <div className="space-y-1">
+                {[
+                  { event: 'Authentication OK', time: '2m ago', type: 'ok' },
+                  { event: 'Rate limit check', time: '5m ago', type: 'ok' },
+                  { event: 'Session refreshed', time: '12m ago', type: 'ok' },
+                  { event: 'New connection', time: '18m ago', type: 'info' },
+                  { event: 'Config audit', time: '25m ago', type: 'ok' },
+                ].map((evt) => (
+                  <div key={evt.event} className="flex items-center gap-2 p-2 rounded-lg hover:bg-jarvis-bg-2/30 transition-colors">
+                    <span className={`w-1.5 h-1.5 rounded-full ${
+                      evt.type === 'ok' ? 'bg-jarvis-green' : 'bg-jarvis-cyan'
+                    }`} />
+                    <span className="text-xs font-mono text-jarvis-text-dim/70 flex-1">{evt.event}</span>
+                    <span className="text-[10px] font-mono text-jarvis-text-dim/30">{evt.time}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Shield */}
+            <div className="flex flex-col items-center justify-center p-4">
+              <m.div
+                className="w-20 h-20 rounded-full border-2 border-jarvis-green/20 flex items-center justify-center mb-4"
+                animate={{ boxShadow: ['0 0 20px rgba(0,255,136,0.08)', '0 0 40px rgba(0,255,136,0.15)', '0 0 20px rgba(0,255,136,0.08)'] }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                <Shield size={36} className="text-jarvis-green" />
+              </m.div>
+              <p className="text-jarvis-green text-sm font-mono font-bold tracking-wider">ALL CLEAR</p>
+              <p className="text-jarvis-text-dim/60 text-[10px] font-mono mt-1">No threats detected</p>
+              <div className="mt-4 flex items-center gap-2 text-jarvis-text-dim/40 text-[10px] font-mono">
+                <span className="w-1 h-1 rounded-full bg-jarvis-green animate-pulse" />
+                Last scan: just now
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {activeTab === 'aicore' && (
+        <div className="jarvis-panel p-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Model Activity */}
+            <div>
+              <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Model Activity</p>
+              <div className="space-y-2.5">
+                {[
+                  { model: 'Claude 3.5 Sonnet', calls: 42, pct: 65 },
+                  { model: 'GPT-4o', calls: 18, pct: 28 },
+                  { model: 'Local LLM', calls: 5, pct: 7 },
+                ].map((m) => (
+                  <div key={m.model} className="p-2.5 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
+                    <div className="flex justify-between text-xs font-mono mb-1">
+                      <span className="text-jarvis-text-dim/70 truncate">{m.model}</span>
+                      <span className="text-jarvis-text-bright">{m.calls}</span>
+                    </div>
+                    <div className="jarvis-resource-bar">
+                      <div className="jarvis-resource-bar-fill bg-gradient-to-r from-jarvis-cyan to-jarvis-blue" style={{ width: `${m.pct}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Token Usage */}
+            <div>
+              <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Token Usage</p>
+              <div className="grid grid-cols-1 gap-3">
+                <div className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
+                  <p className="text-jarvis-text-dim/60 text-[10px] font-mono">Total Input Tokens</p>
+                  <p className="text-jarvis-cyan text-lg font-mono font-bold mt-0.5">847.2k</p>
+                </div>
+                <div className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
+                  <p className="text-jarvis-text-dim/60 text-[10px] font-mono">Total Output Tokens</p>
+                  <p className="text-jarvis-green text-lg font-mono font-bold mt-0.5">124.5k</p>
+                </div>
+                <div className="p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
+                  <p className="text-jarvis-text-dim/60 text-[10px] font-mono">Avg Tokens / Request</p>
+                  <p className="text-jarvis-purple text-lg font-mono font-bold mt-0.5">1,247</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Brain Activity */}
+            <div>
+              <p className="text-jarvis-cyan text-[10px] font-mono font-bold tracking-wider uppercase mb-3">Sector Brain Load</p>
+              <div className="space-y-2">
+                {[
+                  { brain: 'Coding', pct: 58, color: 'bg-jarvis-cyan' },
+                  { brain: 'Research', pct: 22, color: 'bg-jarvis-blue' },
+                  { brain: 'Creative', pct: 12, color: 'bg-jarvis-purple' },
+                  { brain: 'Security', pct: 8, color: 'bg-jarvis-red' },
+                ].map((b) => (
+                  <div key={b.brain}>
+                    <div className="flex justify-between text-xs font-mono mb-0.5">
+                      <span className="text-jarvis-text-dim/70">{b.brain}</span>
+                      <span className="text-jarvis-text-dim/50">{b.pct}%</span>
+                    </div>
+                    <div className="jarvis-resource-bar">
+                      <div className={`jarvis-resource-bar-fill ${b.color}`} style={{ width: `${b.pct}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 p-3 rounded-lg bg-jarvis-bg-2/40 border border-jarvis-border/20">
+                <p className="text-jarvis-text-dim/60 text-[10px] font-mono">Active Router Strategy</p>
+                <p className="text-jarvis-text-bright text-xs font-mono mt-0.5">Smart Router v2 — confidence-based dispatch</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Status bar at bottom ── */}
+      <div className="jarvis-panel p-3">
         <div className="flex items-center justify-center gap-3">
-          <m.div
-            className={`w-2 h-2 rounded-full ${allServicesOk ? 'bg-jarvis-green' : 'bg-jarvis-yellow'}`}
-            animate={allServicesOk ? { scale: [1, 1.2, 1], opacity: [1, 0.6, 1] } : undefined}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          />
-          <span className="text-jarvis-text-bright text-sm font-mono tracking-wider">
+          <span className="relative flex items-center justify-center w-2 h-2">
+            <span className={`w-2 h-2 rounded-full ${allServicesOk ? 'bg-jarvis-green' : 'bg-jarvis-yellow'}`} />
+            {allServicesOk && (
+              <m.span
+                className="absolute inset-0 rounded-full bg-jarvis-green"
+                animate={{ scale: [1, 2.5], opacity: [0.3, 0] }}
+                transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
+              />
+            )}
+          </span>
+          <span className="text-jarvis-text-bright text-xs font-mono tracking-wider">
             {allServicesOk ? 'ALL SYSTEMS OPERATIONAL' : 'SYSTEM DEGRADED'}
           </span>
-          <span className="text-jarvis-text-dim/40 text-[10px] font-mono">
+          <span className="text-jarvis-text-dim/30 text-[10px] font-mono">
             {new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
           </span>
         </div>
-      </HudFrame>
+      </div>
+    </div>
+  );
+}
+
+function LatencyRow({ label, ms }: { label: string; ms: number }) {
+  const color = ms < 10 ? 'text-jarvis-green' : ms < 50 ? 'text-jarvis-yellow' : 'text-jarvis-red';
+  const barColor = ms < 10 ? 'bg-jarvis-green' : ms < 50 ? 'bg-jarvis-yellow' : 'bg-jarvis-red';
+  return (
+    <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-jarvis-bg-2/30 transition-colors">
+      <span className="text-xs font-mono text-jarvis-text-dim/70 w-20 shrink-0">{label}</span>
+      <div className="jarvis-resource-bar flex-1">
+        <div className={`jarvis-resource-bar-fill ${barColor}`} style={{ width: `${Math.min(100, ms)}%` }} />
+      </div>
+      <span className={`text-xs font-mono font-bold ${color} w-12 text-right`}>{ms}ms</span>
+    </div>
+  );
+}
+
+function SecurityCheck({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div className="flex items-center gap-2 p-2 rounded-lg hover:bg-jarvis-bg-2/30 transition-colors">
+      <span className={`w-1.5 h-1.5 rounded-full ${ok ? 'bg-jarvis-green' : 'bg-jarvis-red'}`} />
+      <span className="text-xs font-mono text-jarvis-text-dim/70 flex-1">{label}</span>
+      <span className={`text-[10px] font-mono ${ok ? 'text-jarvis-green' : 'text-jarvis-red'}`}>{ok ? '✓' : '✗'}</span>
     </div>
   );
 }

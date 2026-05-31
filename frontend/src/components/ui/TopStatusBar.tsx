@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { m } from 'framer-motion';
 import { Clock as ClockIcon, HardDrive } from 'lucide-react';
-import { GpuMiniIndicator } from '@/features/gpu/GpuMiniIndicator';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
 
 export function TopStatusBar() {
@@ -21,7 +20,7 @@ export function TopStatusBar() {
 
   return (
     <header
-      className="relative h-[68px] flex items-center justify-between px-5 sm:px-5 pl-12 border-b bg-jarvis-bg/95 backdrop-blur-md shrink-0"
+      className="relative h-[68px] flex items-center justify-between px-5 sm:px-5 pl-12 sm:pl-5 border-b bg-jarvis-bg/95 backdrop-blur-md shrink-0"
       style={{ borderColor: 'var(--jarvis-border)' }}
     >
       {/* Animated gradient bottom border */}
@@ -29,7 +28,6 @@ export function TopStatusBar() {
 
       {/* ── Left: J.A.R.V.I.S brand ── */}
       <div className="flex items-center gap-4">
-        {/* J.A.R.V.I.S logo */}
         <div className="flex items-center gap-3">
           <m.span
             className="text-jarvis-cyan text-xl font-bold tracking-[0.15em] neon-cyan font-sans jarvis-flicker"
@@ -43,23 +41,17 @@ export function TopStatusBar() {
             J.A.R.V.I.S
           </m.span>
 
-          {/* Status dot + label */}
+          {/* Status indicator */}
           <div className="flex items-center gap-2 px-3 py-1 rounded-full border border-jarvis-border/30 bg-jarvis-bg-2/50">
             <span className="relative flex items-center justify-center w-2.5 h-2.5">
-              <span className={`absolute w-2.5 h-2.5 rounded-full ${statusDotColor} opacity-30`}>
-                {systemStatus === 'healthy' && (
-                  <m.span
-                    className="absolute inset-0 rounded-full bg-jarvis-green"
-                    animate={{ scale: [1, 2.5, 1], opacity: [0.4, 0, 0.4] }}
-                    transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
-                  />
-                )}
-              </span>
-              <m.span
-                className={`w-1.5 h-1.5 rounded-full ${statusDotColor} relative`}
-                animate={systemStatus === 'healthy' ? { opacity: [1, 0.4, 1] } : undefined}
-                transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-              />
+              <span className={`w-1.5 h-1.5 rounded-full ${statusDotColor} relative`} />
+              {systemStatus === 'healthy' && (
+                <m.span
+                  className="absolute inset-0 rounded-full bg-jarvis-green"
+                  animate={{ scale: [1, 2.5, 1], opacity: [0.4, 0, 0.4] }}
+                  transition={{ duration: 2, repeat: Infinity, ease: 'easeOut' }}
+                />
+              )}
             </span>
             <span className={`text-[11px] font-mono ${statusColor} uppercase tracking-widest font-semibold`}>
               {systemStatus === 'healthy' ? 'ONLINE' : systemStatus}
@@ -88,11 +80,10 @@ export function TopStatusBar() {
 
       {/* ── Right: GPU + clock ── */}
       <div className="flex items-center gap-3">
-        <GpuMiniIndicator />
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-jarvis-border/30 bg-jarvis-bg-2/50">
-          <HardDrive size={12} className="text-jarvis-text-dim/50" />
+          <HardDrive size={12} className="text-jarvis-text-dim/40" />
           <Clock />
-          <span className="text-jarvis-text-dim text-[10px] font-mono opacity-50 hidden sm:inline">v{version}</span>
+          <span className="text-jarvis-text-dim/40 text-[10px] font-mono hidden sm:inline">v{version}</span>
         </div>
       </div>
     </header>
@@ -113,12 +104,17 @@ function Chip({
   const available = status === 'available';
   return (
     <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-jarvis-border/20 bg-jarvis-bg-2/40">
-      <m.span
-        className={`w-1.5 h-1.5 rounded-full ${available ? 'bg-jarvis-green' : 'bg-jarvis-text-dim'}`}
-        animate={available ? { scale: [1, 1.3, 1] } : undefined}
-        transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-      />
-      <span className="text-xs font-mono text-jarvis-text-dim/80">
+      <span className="relative flex items-center justify-center w-1.5 h-1.5">
+        <span className={`w-1.5 h-1.5 rounded-full ${available ? 'bg-jarvis-green' : 'bg-jarvis-text-dim'}`} />
+        {available && (
+          <m.span
+            className="absolute inset-0 rounded-full bg-jarvis-green"
+            animate={{ scale: [1, 2], opacity: [0.3, 0] }}
+            transition={{ duration: 1.5, repeat: Infinity, ease: 'easeOut' }}
+          />
+        )}
+      </span>
+      <span className="text-xs font-mono text-jarvis-text-dim/70">
         {label}
         {isFallback && <span className="text-jarvis-yellow ml-1 text-[10px]">[fb]</span>}
       </span>
@@ -151,9 +147,9 @@ function Clock() {
 
   return (
     <div className="flex items-center gap-2">
-      <ClockIcon size={10} className="text-jarvis-text-dim/40" />
-      <span className="text-xs font-mono text-jarvis-text-dim/70">{time}</span>
-      <span className="text-[10px] font-mono text-jarvis-text-dim/40 hidden sm:inline">{date}</span>
+      <ClockIcon size={10} className="text-jarvis-text-dim/30" />
+      <span className="text-xs font-mono text-jarvis-text-dim/60">{time}</span>
+      <span className="text-[10px] font-mono text-jarvis-text-dim/30 hidden sm:inline">{date}</span>
     </div>
   );
 }

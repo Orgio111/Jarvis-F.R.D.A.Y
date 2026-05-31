@@ -26,6 +26,7 @@ import {
   Play,
   Upload,
   Globe,
+  Cpu,
 } from 'lucide-react';
 
 type RecordState = 'idle' | 'recording' | 'processing' | 'done' | 'error';
@@ -143,6 +144,11 @@ const VOICE_COMMANDS: VoiceCommand[] = [
 
 export function VoicePanel() {
   const bootstrapReady = useBootstrapStore((s) => s.status === 'ready');
+
+  // ── Bootstrap GPU data for STT device info (Merge: GPU → Voice) ──
+  const bootstrap = useBootstrapStore((s) => s.data);
+  const gpuInfo = bootstrap?.gpu;
+
   const { data: status } = useQuery<VoiceStatus>({
     queryKey: ['voice-status'],
     queryFn: () => apiClient.get<VoiceStatus>('/voice/status'),
@@ -383,6 +389,13 @@ export function VoicePanel() {
             status={ttsAvailable ? 'online' : 'offline'}
             label={`TTS: ${ttsAvailable ? 'ready' : 'unavailable'}`}
           />
+          {/* GPU device indicator (Merge 3: GPU → Voice) */}
+          {gpuInfo && gpuInfo.cudaAvailable && (
+            <StatusDot
+              status="online"
+              label={`GPU: ${gpuInfo.activeDevice ?? 'N/A'}`}
+            />
+          )}
           <NeonBadge
             color={wakeWordEnabled ? 'cyan' : 'dim'}
             label={wakeWordEnabled ? 'WAKE WORD' : 'WAKE OFF'}
@@ -399,6 +412,26 @@ export function VoicePanel() {
           )}
         </div>
       </GlassPanel>
+
+      {/* ── GPU Compute info (Merge 3: GPU → Voice) ── */}
+      {gpuInfo && gpuInfo.cudaAvailable && (
+        <GlassPanel className="p-3 mb-4">
+          <div className="flex items-center gap-3 text-xs font-mono">
+            <Cpu size={14} className="text-jarvis-purple" />
+            <span className="text-jarvis-text-dim/70">STT Backend:</span>
+            <span className="text-jarvis-text-bright">{gpuInfo.activeDevice ?? 'GPU'}</span>
+            <span className="text-jarvis-text-dim/30 mx-1">|</span>
+            <span className="text-jarvis-text-dim/70">VRAM:</span>
+            <span className="text-jarvis-text-bright">
+              {gpuInfo.vram.usedMb > 1024 ? `${(gpuInfo.vram.usedMb / 1024).toFixed(1)}G` : `${gpuInfo.vram.usedMb.toFixed(0)}M`}
+              {' / '}
+              {gpuInfo.vram.totalMb > 1024 ? `${(gpuInfo.vram.totalMb / 1024).toFixed(1)}G` : `${gpuInfo.vram.totalMb.toFixed(0)}M`}
+            </span>
+            <div className="flex-1" />
+            <NeonBadge color="purple" size="sm" label="GPU ACCELERATED" />
+          </div>
+        </GlassPanel>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* ── STT Panel ── */}

@@ -4,40 +4,18 @@ import { m, AnimatePresence } from 'framer-motion';
 import {
   Home,
   MessageSquare,
-  Mic,
-  Camera,
-  Database,
   Wrench,
-  PlayCircle,
-  Search,
-  Terminal,
-  Cpu,
-  Cable,
-  Boxes,
-  Activity,
-  Zap,
-  RefreshCw,
-  Settings,
   ChevronLeft,
   Menu,
-  Code2,
-  Workflow,
-  Monitor,
-  Brain,
-  Radio,
-  Image,
-  Dna,
-  Globe,
-  Users,
-  Layers,
   FlaskConical,
   GitBranch,
   Store,
-  Network,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
 import type { LucideIcon } from 'lucide-react';
+
+// ─── Nav category groups ────────────────────────────────────────────────────
 
 interface NavItem {
   path: string;
@@ -46,38 +24,41 @@ interface NavItem {
   featureKey?: keyof import('@/lib/api/types').FeatureFlags;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { path: '/',               label: 'Dashboard',     icon: Home },
-  { path: '/chat',           label: 'Chat',          icon: MessageSquare, featureKey: 'chat' },
-  { path: '/voice',          label: 'Voice',         icon: Mic, featureKey: 'voice' },
-  { path: '/vision',         label: 'Vision',        icon: Camera, featureKey: 'vision' },
-  { path: '/memory',         label: 'Memory',        icon: Database, featureKey: 'memory' },
-  { path: '/tools',          label: 'Tools',         icon: Wrench, featureKey: 'tools' },
-  { path: '/execution',      label: 'Execution',     icon: PlayCircle, featureKey: 'execution' },
-  { path: '/search',         label: 'Search',        icon: Search, featureKey: 'search' },
-  { path: '/code-index',        label: 'Code Intel',     icon: Code2 },
-  { path: '/workflows',         label: 'Workflows',      icon: Workflow },
-  { path: '/device-agent',      label: 'Device Agent',   icon: Monitor },
-  { path: '/reasoning',         label: 'Reasoning',      icon: Brain },
-  { path: '/provider-discovery', label: 'Discovery',    icon: Radio },
-  { path: '/image-generation',  label: 'Images',         icon: Image },
-  { path: '/prompt-mutation',   label: 'Prompts',        icon: Dna },
-  { path: '/external-apis',     label: 'APIs',           icon: Globe },
-  { path: '/swarm',             label: 'Swarm',          icon: Users },
-  { path: '/multi-agent',       label: 'Multi-Agent',    icon: Network },
-  { path: '/memory-fabric',     label: 'Memory Fab',     icon: Layers },
-  { path: '/self-evolution',    label: 'Evolution',     icon: FlaskConical },
-  { path: '/agent-run',         label: 'Agent Run',     icon: GitBranch },
-  { path: '/skills',            label: 'Skill OS',      icon: Store },
-  { path: '/terminal',       label: 'Terminal',      icon: Terminal, featureKey: 'terminal' },
-  { path: '/gpu',            label: 'GPU',           icon: Cpu, featureKey: 'gpuMonitor' },
-  { path: '/providers',      label: 'Providers',     icon: Cable },
-  { path: '/models',         label: 'Models',        icon: Boxes },
-  { path: '/monitoring',     label: 'Monitor',       icon: Activity },
-  { path: '/local-actions',  label: 'Actions',       icon: Zap, featureKey: 'localControl' },
-  { path: '/self-improvement', label: 'Self-Improve', icon: RefreshCw, featureKey: 'selfImprovement' },
-  { path: '/settings',       label: 'Settings',      icon: Settings },
+interface NavCategory {
+  label: string;
+  items: NavItem[];
+}
+
+const NAV_CATEGORIES: NavCategory[] = [
+  {
+    label: 'Core',
+    items: [
+      { path: '/',               label: 'Dashboard',     icon: Home },
+      { path: '/chat',           label: 'Communication', icon: MessageSquare },
+    ],
+  },
+  {
+    label: 'Tools',
+    items: [
+      { path: '/tools',          label: 'Tools',         icon: Wrench, featureKey: 'tools' },
+    ],
+  },
+  {
+    label: 'Intelligence',
+    items: [
+      { path: '/self-evolution',    label: 'Evolution',      icon: FlaskConical },
+    ],
+  },
+  {
+    label: 'System',
+    items: [
+      { path: '/agent-run',         label: 'Agent Run',     icon: GitBranch },
+      { path: '/skills',            label: 'Skill OS',      icon: Store },
+    ],
+  },
 ];
+
+// ─── Sidebar ────────────────────────────────────────────────────────────────
 
 export function Sidebar() {
   const features = useBootstrapStore((s) => s.data?.features);
@@ -101,35 +82,45 @@ export function Sidebar() {
     return features[item.featureKey] === true;
   };
 
-  const visibleItems = NAV_ITEMS.filter(isVisible);
+  const visibleCategories = NAV_CATEGORIES.map((cat) => ({
+    ...cat,
+    items: cat.items.filter(isVisible),
+  })).filter((cat) => cat.items.length > 0);
 
   const sidebarNav = (
-    <>
-      {visibleItems.map((item) => (
-        <SidebarItem key={item.path} item={item} expanded={expanded} />
+    <div className="flex-1 overflow-y-auto scrollbar-thin py-2 space-y-1">
+      {visibleCategories.map((category) => (
+        <div key={category.label}>
+          {expanded && (
+            <div className="jarvis-nav-category">{category.label}</div>
+          )}
+          {category.items.map((item) => (
+            <SidebarItem key={item.path} item={item} expanded={expanded} />
+          ))}
+        </div>
       ))}
-    </>
+    </div>
   );
 
   return (
     <>
       {/* ── Desktop sidebar ── */}
       <m.aside
-        className="hidden sm:flex flex-col border-r overflow-y-auto scrollbar-thin bg-jarvis-bg/95 shrink-0 z-20"
+        className="hidden sm:flex flex-col border-r overflow-hidden bg-jarvis-bg/95 backdrop-blur-md shrink-0 z-20"
         style={{ borderColor: 'var(--jarvis-border)' }}
-        animate={{ width: expanded ? 192 : 56 }}
+        animate={{ width: expanded ? 208 : 56 }}
         transition={{ type: 'spring', stiffness: 280, damping: 28 }}
       >
         {/* Toggle button */}
-        <div className="flex items-center justify-end h-9 px-2 border-b border-jarvis-border/20 shrink-0">
+        <div className="flex items-center justify-end h-10 px-3 border-b shrink-0" style={{ borderColor: 'var(--jarvis-border)' }}>
           {expanded && (
-            <span className="text-[9px] font-mono text-jarvis-text-dim/30 tracking-[0.2em] uppercase mr-auto">
-              NAV
+            <span className="text-[9px] font-mono text-jarvis-text-dim/20 tracking-[0.25em] uppercase mr-auto">
+              J.A.R.V.I.S
             </span>
           )}
           <button
             onClick={() => setExpanded(!expanded)}
-            className="w-5 h-5 flex items-center justify-center rounded text-jarvis-text-dim/30 hover:text-jarvis-cyan hover:bg-jarvis-cyan/5 transition-all duration-200"
+            className="w-6 h-6 flex items-center justify-center rounded text-jarvis-text-dim/30 hover:text-jarvis-cyan hover:bg-jarvis-cyan/5 transition-all duration-200"
             title={expanded ? 'Collapse' : 'Expand'}
           >
             <m.div
@@ -172,14 +163,14 @@ export function Sidebar() {
             <m.aside
               key="sidebar-drawer"
               className="fixed left-0 top-0 bottom-0 z-50 flex flex-col border-r bg-jarvis-bg/98 backdrop-blur-xl sm:hidden"
-              style={{ borderColor: 'var(--jarvis-border)', width: 220 }}
-              initial={{ x: -220 }}
+              style={{ borderColor: 'var(--jarvis-border)', width: 240 }}
+              initial={{ x: -240 }}
               animate={{ x: 0 }}
-              exit={{ x: -220 }}
+              exit={{ x: -240 }}
               transition={{ type: 'spring', stiffness: 300, damping: 30 }}
             >
               {/* Drawer header */}
-              <div className="flex items-center justify-between h-14 px-4 border-b border-jarvis-border/20 shrink-0">
+              <div className="flex items-center justify-between h-14 px-4 border-b shrink-0" style={{ borderColor: 'var(--jarvis-border)' }}>
                 <span className="text-jarvis-cyan text-sm font-bold tracking-[0.15em]">J.A.R.V.I.S</span>
                 <button
                   onClick={() => setMobileOpen(false)}
@@ -189,10 +180,15 @@ export function Sidebar() {
                 </button>
               </div>
 
-              {/* Nav items */}
-              <div className="flex-1 overflow-y-auto scrollbar-thin py-2">
-                {visibleItems.map((item) => (
-                  <MobileNavItem key={item.path} item={item} onNavigate={() => setMobileOpen(false)} />
+              {/* Mobile nav */}
+              <div className="flex-1 overflow-y-auto scrollbar-thin py-2 space-y-1">
+                {visibleCategories.map((category) => (
+                  <div key={category.label}>
+                    <div className="jarvis-nav-category">{category.label}</div>
+                    {category.items.map((item) => (
+                      <MobileNavItem key={item.path} item={item} onNavigate={() => setMobileOpen(false)} />
+                    ))}
+                  </div>
                 ))}
               </div>
             </m.aside>
@@ -212,7 +208,7 @@ function SidebarItem({ item, expanded }: { item: NavItem; expanded: boolean }) {
     <NavLink
       to={item.path}
       title={!expanded ? item.label : undefined}
-      className="group relative flex items-center h-11 w-full"
+      className="group relative flex items-center h-10 w-full"
     >
       {({ isActive }) => (
         <span
@@ -221,14 +217,15 @@ function SidebarItem({ item, expanded }: { item: NavItem; expanded: boolean }) {
             expanded ? 'px-3 gap-3' : 'justify-center',
             isActive
               ? 'text-jarvis-cyan'
-              : 'text-jarvis-text-dim hover:text-jarvis-cyan/80',
+              : 'text-jarvis-text-dim/70 hover:text-jarvis-cyan/80',
           )}
         >
           {/* Background highlight on hover */}
           <m.div
             className={cn(
-              'absolute inset-x-2 inset-y-0 rounded-lg opacity-0 transition-opacity duration-200 bg-gradient-to-r from-jarvis-cyan/[0.03] to-transparent',
+              'absolute inset-x-2 inset-y-0 rounded-lg opacity-0 transition-opacity duration-200',
               'group-hover:opacity-100',
+              isActive ? 'bg-jarvis-cyan/[0.07]' : 'bg-jarvis-cyan/[0.03]',
             )}
             initial={false}
           />
@@ -237,7 +234,7 @@ function SidebarItem({ item, expanded }: { item: NavItem; expanded: boolean }) {
           {isActive && (
             <m.span
               layoutId="sidebar-active"
-              className="absolute left-0 top-2 bottom-2 w-[3px] bg-gradient-to-b from-jarvis-cyan to-jarvis-blue rounded-r-full"
+              className="absolute left-0 top-1.5 bottom-1.5 w-[3px] bg-gradient-to-b from-jarvis-cyan to-jarvis-blue rounded-r-full"
               transition={{ type: 'spring', stiffness: 400, damping: 30 }}
             />
           )}
@@ -253,7 +250,7 @@ function SidebarItem({ item, expanded }: { item: NavItem; expanded: boolean }) {
             transition={{ type: 'spring', stiffness: 400, damping: 20 }}
           >
             <Icon
-              size={18}
+              size={17}
               strokeWidth={isActive ? 2 : 1.5}
               className={cn(
                 'transition-all duration-200',
@@ -273,7 +270,7 @@ function SidebarItem({ item, expanded }: { item: NavItem; expanded: boolean }) {
           {/* Label (only when expanded) */}
           {expanded && (
             <m.span
-              className="text-xs font-mono tracking-[0.05em] truncate"
+              className="text-[11px] font-mono tracking-[0.03em] truncate"
               initial={{ opacity: 0, x: -6 }}
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -6 }}
@@ -322,7 +319,7 @@ function MobileNavItem({ item, onNavigate }: { item: NavItem; onNavigate: () => 
             'absolute inset-0 flex items-center gap-3 px-4 transition-all duration-200',
             isActive
               ? 'text-jarvis-cyan'
-              : 'text-jarvis-text-dim hover:text-jarvis-cyan/80',
+              : 'text-jarvis-text-dim/70 hover:text-jarvis-cyan/80',
           )}
         >
           {/* Active indicator */}
@@ -353,8 +350,8 @@ function MobileNavItem({ item, onNavigate }: { item: NavItem; onNavigate: () => 
           {/* Label */}
           <span
             className={cn(
-              'text-sm font-mono tracking-[0.05em]',
-              isActive ? 'text-jarvis-cyan' : 'text-jarvis-text-dim group-hover:text-jarvis-cyan/80',
+              'text-sm font-mono tracking-[0.03em]',
+              isActive ? 'text-jarvis-cyan' : 'text-jarvis-text-dim/70 group-hover:text-jarvis-cyan/80',
             )}
           >
             {item.label}

@@ -77,8 +77,28 @@ func Build(cfg *config.Config, aiProxy *proxy.AIProxy, redis *redisclient.Client
 		voiceH := handlers.NewVoiceHandler(cfg, aiProxy)
 		r.Get("/api/voice/status", voiceH.Status)
 		r.Post("/api/voice/stt", voiceH.STT)
-	r.Post("/api/voice/tts", voiceH.TTS)
+		r.Post("/api/voice/tts", voiceH.TTS)
 		r.Post("/api/voice/set-ref", voiceH.SetRef)
+
+		// Code Index
+		r.Get("/api/code-index/status", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/code-index/status")
+		})
+		r.Post("/api/code-index/index", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyPost(aiProxy, w, r, "/code-index/index")
+		})
+		r.Post("/api/code-index/search", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyPost(aiProxy, w, r, "/code-index/search")
+		})
+		r.Delete("/api/code-index/clear", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyDelete(aiProxy, w, r, "/code-index/clear")
+		})
+		r.Get("/api/code-index/analyze", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/code-index/analyze")
+		})
+		r.Post("/api/code-index/index/incremental", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyPost(aiProxy, w, r, "/code-index/index/incremental")
+		})
 
 		// STT (faster-whisper GPU)
 		sttH := handlers.NewSTTHandler(cfg, aiProxy)
