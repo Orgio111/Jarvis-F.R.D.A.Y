@@ -34,6 +34,9 @@ const SelfEvolutionPage        = lazy(() => import('@/features/selfEvolution/Sel
 const AgentRunPage             = lazy(() => import('@/features/agentRun/AgentRunPanel').then(m => ({ default: m.AgentRunPanel })));
 const SkillMarketplacePage     = lazy(() => import('@/features/skillMarketplace/SkillMarketplacePage').then(m => ({ default: m.SkillMarketplacePage })));
 const MultiAgentPage           = lazy(() => import('@/features/multiAgent/MultiAgentPanel').then(m => ({ default: m.MultiAgentPanel })));
+const SessionReplayPage        = lazy(() => import('@/features/sessionReplay/SessionReplayPage').then(m => ({ default: m.SessionReplayPage })));
+const ApprovalGatesPage        = lazy(() => import('@/features/approval/ApprovalGatesPanel').then(m => ({ default: m.ApprovalGatesPanel })));
+const PromptLibraryPage        = lazy(() => import('@/features/promptLibrary/PromptLibraryPage').then(m => ({ default: m.PromptLibraryPage })));
 
 function NotFoundPage() {
   return (
@@ -211,6 +214,28 @@ export function AppRouter() {
       <Route path="/local-actions" element={<SuspensePage skeleton="localActions"><div className="h-full overflow-auto"><LocalActionsPage /></div></SuspensePage>} />
       <Route path="/self-improvement" element={<SuspensePage skeleton="selfImprovement"><div className="h-full overflow-auto"><SelfImprovementPage /></div></SuspensePage>} />
       <Route path="/settings" element={<SuspensePage skeleton="settings"><div className="h-full overflow-auto"><SettingsPage /></div></SuspensePage>} />
+
+      <Route path="/session-replay" element={
+        <SuspensePage skeleton="search">
+          <div className="h-full overflow-auto">
+            <SessionReplayPage />
+          </div>
+        </SuspensePage>
+      } />
+      <Route path="/approval" element={
+        <SuspensePage skeleton="search">
+          <div className="h-full overflow-auto">
+            <ApprovalGatesPage />
+          </div>
+        </SuspensePage>
+      } />
+      <Route path="/prompt-library" element={
+        <SuspensePage skeleton="search">
+          <div className="h-full overflow-auto">
+            <PromptLibraryPage />
+          </div>
+        </SuspensePage>
+      } />
 
       <Route path="*" element={<NotFoundPage />} />
     </Routes>

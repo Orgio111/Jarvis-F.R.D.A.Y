@@ -24,6 +24,13 @@
         "center": true
       }
     ],
+    "trayIcon": {
+      "id": "main",
+      "iconPath": "icons/icon.png",
+      "iconAsTemplate": true,
+      "menuOnLeftClick": false,
+      "title": "JARVIS"
+    },
     "security": {
       "csp": "default-src 'self'; connect-src 'self' http://localhost:8000 ws://localhost:8000; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;"
     }
@@ -34,5 +41,12 @@
     "icon": [
       "icons/icon.png"
     ]
+  },
+  "plugins": {
+    "global-shortcut": {},
+    "notification": {},
+    "shell": {
+      "open": true
+    }
   }
 }

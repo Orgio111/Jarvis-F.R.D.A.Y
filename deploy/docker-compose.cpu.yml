@@ -1,0 +1,25 @@
+# CPU-only override — no GPU requirements.
+# Usage:  docker compose -f docker-compose.yml -f docker-compose.cpu.yml up -d
+version: "3.9"
+
+services:
+  python-ai-service:
+    environment:
+      - DEVICE=cpu
+      - TORCH_DEVICE=cpu
+      - NVIDIA_NIM_ENABLED=false
+      - CUDA_VISIBLE_DEVICES=""
+    deploy:
+      resources:
+        reservations:
+          devices: []   # remove GPU reservation
+        limits:
+          memory: 6G
+
+  go-gateway:
+    environment:
+      - GPU_ENABLED=false
+
+  rust-broker:
+    environment:
+      - GPU_ENABLED=false

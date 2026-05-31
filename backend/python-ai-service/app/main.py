@@ -372,3 +372,19 @@ app.include_router(marketplace_router)
 
 from app.routers.multi_agent import router as multi_agent_router
 app.include_router(multi_agent_router)
+
+# ── Session Replay ────────────────────────────────────────────────────────────
+from app.routers.session_replay import router as session_replay_router
+app.include_router(session_replay_router)
+
+# ── Approval Gates ────────────────────────────────────────────────────────────
+from app.routers.approval import router as approval_router
+app.include_router(approval_router)
+
+# ── Prompt Library ────────────────────────────────────────────────────────────
+from app.routers.prompt_library import router as prompt_library_router
+app.include_router(prompt_library_router)
+
+# ── Wake Word endpoints (part of voice) ──────────────────────────────────────
+from app.routers import wake_word as wake_word_router
+app.include_router(wake_word_router.router)
