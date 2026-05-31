@@ -160,22 +160,34 @@ async def _dispatch_tool(tool_id: str, params: dict) -> dict:
         code = params.get("code", "")
         timeout = int(params.get("timeout", 30))
         if language == "shell":
-            return await _run_shell(code, timeout, 200_000, False)
-        return await _run_python(code, timeout, 200_000)
+            raw = await _run_shell(code, timeout, 200_000, False)
+        else:
+            raw = await _run_python(code, timeout, 200_000)
+        # Normalise to {success, output} for crystallization pipeline
+        success_flag = raw.get("exitCode", 1) == 0 and not raw.get("timedOut", False)
+        output_text = raw.get("stdout", "") or raw.get("output", "")
+        return {
+            **raw,
+            "success": success_flag,
+            "output": output_text,
+            "error": raw.get("stderr") if raw.get("stderr") else None,
+        }
 
     if tool_id == "memory_search":
         from app.routers.memory import _search_memory
         from app.core.config import get_settings
         settings = get_settings()
-        return {"results": await _search_memory(params.get("query", ""), int(params.get("topK", 5)), settings)}
+        results = await _search_memory(params.get("query", ""), int(params.get("topK", 5)), settings)
+        return {"results": results, "success": True, "output": f"Found {len(results)} memory entries"}
 
     if tool_id == "memory_store":
         from app.routers.memory import _store_memory
         from app.core.config import get_settings
         settings = get_settings()
-        return await _store_memory(params.get("content", ""), params.get("metadata", {}), settings)
+        raw = await _store_memory(params.get("content", ""), params.get("metadata", {}), settings)
+        return {**raw, "success": True, "output": f"Stored memory entry id={raw.get('id')}"}
 
     if tool_id == "web_search":
-        return {"results": [], "note": "Web search not yet connected to a provider"}
+        return {"results": [], "success": False, "output": "", "note": "Web search not yet connected to a provider"}
 
-    return {"note": f"Tool '{tool_id}' dispatched but no executor is registered"}
+    return {"note": f"Tool '{tool_id}' dispatched but no executor is registered", "success": False, "output": ""}

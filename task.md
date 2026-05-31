@@ -477,3 +477,44 @@ Jarvis = OS. Skills = apps. Marketplace = app store. Registry = package manager.
 - [ ] `latency_ms_avg` tracked per-execution (rolling avg)
 - [ ] `user_feedback` from marketplace rating endpoint feeds into score
 
+
+---
+
+## Round 6 — Qdrant + Memory + Skill Crystallization — DONE (2026-05-31)
+
+### What was completed
+
+#### Phase 1: Qdrant 3-Layer Memory — DONE ✓
+- `qdrant_memory.py` — complete 3-layer (core/recall/archival) with FAISS fallback
+  - Fixed: `.search()` → `.query_points()` for qdrant-client >= 1.10
+  - Verified: semantic search returning correct hits with cosine scores
+- `memory_service.py` — fully wired to Qdrant primary + FAISS fallback
+  - High-importance semantic entries (>= 0.8) auto-pinned to core layer
+  - Score threshold 0.60 filters low-relevance hits from context window
+- Qdrant binary (v1.18.1) running on port 6333 (standalone, no docker)
+- `sentence-transformers/all-MiniLM-L6-v2` installed and loaded (384-dim vectors)
+- Collections confirmed: jarvis_core, jarvis_recall, jarvis_archival
+
+#### Phase 2: Hierarchical Agent Routing — DONE ✓ (was already implemented)
+- `agent_roles.py` — 6 roles (orchestrator/coder/researcher/devops/analyst/writer)
+  - Keyword fast-path + embedding cosine-sim fallback
+- `macro_brain.py` — `_execute_with_role()` wired into `_execute_step()` for tool+llm steps
+  - Role backstory/goal injected as system prompt
+  - Tool allowlist isolation per role
+  - Reputation tracking per role (`role_coder`, `role_researcher`, etc.)
+
+#### Phase 3: Skill Crystallization — DONE ✓ (was mostly implemented + fixed)
+- `skill_service.py` — `crystallize()`, `find_similar_skill()`, `assess_quality()` complete
+- `tools.py` — cache check before execution + crystallize hook after success
+  - Fixed: `_dispatch_tool` now normalises code_execute result to `{success, output}` 
+  - Cache hit path: score >= 0.85 cosine sim returns cached output
+  - Crystallize path: score >= 0.7 → snapshot to Qdrant archival
+- Verified: code_execute result `crystallized: true, qualityScore: 0.8`
+- Archival collection has 1 crystallized skill pattern
+
+### State after Round 6
+- Memory mode: **qdrant** (live)
+- Qdrant: 3 collections operational, search verified
+- Crystallization: working end-to-end
+- Brain: 6 roles, routing by keyword + embedding, reputation tracking
+- Service: healthy on port 8100
