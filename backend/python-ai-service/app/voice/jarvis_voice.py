@@ -63,6 +63,7 @@ class STTEngine:
                 device=0 if self.device == "cuda" and torch.cuda.is_available() else -1,
                 chunk_length_s=30,
                 stride_length_s=5,
+                generate_kwargs={"language": "mongolian"},
             )
             logger.info("Mongolian STT loaded ✓")
         return self._mn_pipe
@@ -109,19 +110,47 @@ class STTEngine:
             result = pipe(audio_path)
             return result["text"].strip()
 
-        else:  # auto
-            # Try Mongolian first
-            mn_pipe = self._load_mn()
-            result = mn_pipe(audio_path)
-            text = result["text"].strip()
-            # Хэрэв Кирилл тэмдэгт байвал Монгол гэж үзнэ
-            cyrillic_count = sum(1 for c in text if "\u0400" <= c <= "\u04FF")
-            if cyrillic_count > len(text) * 0.3:
-                return text
-            # Otherwise try English
-            en_pipe = self._load_en()
-            en_result = en_pipe(audio_path)
-            return en_result["text"].strip()
+        else:  # auto — whisper language detection, then route to correct model
+            try:
+                from transformers import WhisperProcessor, WhisperForConditionalGeneration
+                import librosa
+
+                # Load base whisper for language detection only (tiny model = fast)
+                processor = WhisperProcessor.from_pretrained("openai/whisper-base")
+                model = WhisperForConditionalGeneration.from_pretrained("openai/whisper-base")
+                audio_array, sr = librosa.load(audio_path, sr=16000, mono=True)
+                inputs = processor(audio_array, return_tensors="pt", sampling_rate=16000)
+                # Detect language
+                with torch.no_grad():
+                    predicted_ids = model.generate(
+                        inputs["input_features"],
+                        max_new_tokens=1,
+                        return_dict_in_generate=True,
+                        output_scores=True,
+                    )
+                detected_lang = processor.batch_decode(
+                    predicted_ids.sequences, skip_special_tokens=False
+                )[0]
+                is_mongolian = "<|mn|>" in detected_lang or "<|mongolian|>" in detected_lang
+            except Exception:
+                # Fallback heuristic: try MN model, check Cyrillic output
+                is_mongolian = None
+
+            if is_mongolian is True:
+                mn_pipe = self._load_mn()
+                return mn_pipe(audio_path)["text"].strip()
+            elif is_mongolian is False:
+                en_pipe = self._load_en()
+                return en_pipe(audio_path)["text"].strip()
+            else:
+                # Heuristic fallback
+                mn_pipe = self._load_mn()
+                text = mn_pipe(audio_path)["text"].strip()
+                cyrillic_count = sum(1 for c in text if "\u0400" <= c <= "\u04FF")
+                if cyrillic_count > len(text) * 0.3:
+                    return text
+                en_pipe = self._load_en()
+                return en_pipe(audio_path)["text"].strip()
 
 
 class TTSEngine:
