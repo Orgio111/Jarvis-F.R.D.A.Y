@@ -24,13 +24,33 @@ import {
   Circle,
   Pause,
   Play,
+  Upload,
+  Globe,
 } from 'lucide-react';
 
 type RecordState = 'idle' | 'recording' | 'processing' | 'done' | 'error';
+type Lang = 'auto' | 'mn' | 'en';
+type TtsLang = 'mn' | 'en';
 
 interface VoiceStatus {
-  stt: { enabled: boolean; available: boolean; engine: string; device: string; modelSize: string };
-  tts: { enabled: boolean; available: boolean; engine: string; device: string };
+  stt: {
+    enabled: boolean;
+    available: boolean;
+    engine: string;
+    device: string;
+    models?: { mn: string; en: string };
+    loaded?: boolean;
+  };
+  tts: {
+    enabled: boolean;
+    available: boolean;
+    engine: string;
+    device: string;
+    model?: string;
+    sampleRate?: number;
+    loaded?: boolean;
+    voiceRefs?: { en: boolean; mn: boolean };
+  };
 }
 
 // ─── Audio Visualizer ───────────────────────────────────────────────────────
@@ -132,9 +152,19 @@ export function VoicePanel() {
 
   const [recordState, setRecordState] = useState<RecordState>('idle');
   const [transcript, setTranscript] = useState('');
+  const [detectedLang, setDetectedLang] = useState<string | null>(null);
   const [ttsText, setTtsText] = useState('');
   const [ttsStatus, setTtsStatus] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
   const [errorMsg, setErrorMsg] = useState('');
+
+  // ── Language selectors ──────────────────────────────────────────────────
+  const [sttLang, setSttLang] = useState<Lang>('auto');
+  const [ttsLang, setTtsLang] = useState<TtsLang>('en');
+
+  // ── Voice ref upload ────────────────────────────────────────────────────
+  const [refLang, setRefLang] = useState<TtsLang>('en');
+  const [refUploadStatus, setRefUploadStatus] = useState<'idle' | 'uploading' | 'done' | 'error'>('idle');
+  const refInputRef = useRef<HTMLInputElement>(null);
 
   // ── Audio refs for TTS playback ──────────────────────────────────────────
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -222,9 +252,11 @@ export function VoicePanel() {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
         const form = new FormData();
         form.append('audio', blob, 'recording.webm');
+        form.append('lang', sttLang);
         try {
-          const res = await apiClient.postForm<{ transcript: string }>('/voice/stt', form);
+          const res = await apiClient.postForm<{ transcript: string; language: string }>('/voice/stt', form);
           setTranscript(res.transcript ?? '');
+          setDetectedLang(res.language ?? null);
           setRecordState('done');
         } catch (err) {
           setErrorMsg(err instanceof Error ? err.message : 'STT failed');
@@ -257,7 +289,7 @@ export function VoicePanel() {
           'X-Session-ID': getSessionId(),
           'X-Client-Version': env.clientVersion,
         },
-        body: JSON.stringify({ text, interruptPrevious: interruptionMode }),
+        body: JSON.stringify({ text, lang: ttsLang, interruptPrevious: interruptionMode }),
       });
 
       if (!response.ok) {
@@ -292,6 +324,22 @@ export function VoicePanel() {
       setTtsStatus('error');
     },
   });
+
+  // ── Voice reference upload ────────────────────────────────────────────────
+  const uploadVoiceRef = useCallback(async (file: File) => {
+    setRefUploadStatus('uploading');
+    try {
+      const form = new FormData();
+      form.append('audio', file, file.name);
+      form.append('lang', refLang);
+      await apiClient.postForm('/voice/set-ref', form);
+      setRefUploadStatus('done');
+      setTimeout(() => setRefUploadStatus('idle'), 3000);
+    } catch {
+      setRefUploadStatus('error');
+      setTimeout(() => setRefUploadStatus('idle'), 4000);
+    }
+  }, [refLang]);
 
   const speakText = useCallback(async () => {
     if (!ttsText.trim()) return;
@@ -372,13 +420,46 @@ export function VoicePanel() {
               <span className="text-jarvis-text-bright">{status.stt.engine}</span>
               <span className="text-jarvis-text-dim">Device</span>
               <span className="text-jarvis-text-bright">{status.stt.device}</span>
-              <span className="text-jarvis-text-dim">Model</span>
-              <span className="text-jarvis-text-bright">{status.stt.modelSize}</span>
+              {status.stt.models && (
+                <>
+                  <span className="text-jarvis-text-dim">MN model</span>
+                  <span className="text-jarvis-text-bright truncate" title={status.stt.models.mn}>
+                    {status.stt.models.mn.split('/').pop()}
+                  </span>
+                  <span className="text-jarvis-text-dim">EN model</span>
+                  <span className="text-jarvis-text-bright truncate" title={status.stt.models.en}>
+                    {status.stt.models.en.split('/').pop()}
+                  </span>
+                </>
+              )}
+              <span className="text-jarvis-text-dim">Loaded</span>
+              <span className={status.stt.loaded ? 'text-jarvis-green' : 'text-jarvis-yellow'}>
+                {status.stt.loaded ? 'yes' : 'lazy (loads on first use)'}
+              </span>
             </div>
           )}
 
           {sttAvailable ? (
             <div className="space-y-4">
+              {/* Language selector */}
+              <div className="flex items-center gap-2">
+                <Globe size={12} className="text-jarvis-text-dim shrink-0" />
+                <span className="text-[11px] font-mono text-jarvis-text-dim">Language:</span>
+                {(['auto', 'mn', 'en'] as Lang[]).map((l) => (
+                  <button
+                    key={l}
+                    onClick={() => setSttLang(l)}
+                    className={`px-2.5 py-1 text-[10px] font-mono rounded border transition-colors ${
+                      sttLang === l
+                        ? 'border-jarvis-cyan/60 text-jarvis-cyan bg-jarvis-cyan/10'
+                        : 'border-jarvis-border/30 text-jarvis-text-dim hover:text-jarvis-cyan hover:border-jarvis-cyan/30'
+                    }`}
+                  >
+                    {l === 'auto' ? 'Auto' : l === 'mn' ? 'Монгол' : 'English'}
+                  </button>
+                ))}
+              </div>
+
               {/* Voice activity visualizer */}
               <div className="bg-jarvis-bg rounded-lg border border-jarvis-border/30 p-2">
                 <AudioVisualizer isActive={isRecording} isPlaying={false} />
@@ -475,6 +556,11 @@ export function VoicePanel() {
                   <div className="flex items-center gap-2 mb-1.5">
                     <CheckCircle2 size={10} className="text-jarvis-green" />
                     <p className="text-jarvis-text-dim text-[10px] font-mono">Transcript:</p>
+                    {detectedLang && (
+                      <span className="ml-auto text-[10px] font-mono text-jarvis-cyan/70">
+                        detected: {detectedLang === 'mn' ? 'Монгол' : 'English'}
+                      </span>
+                    )}
                   </div>
                   <p className="text-jarvis-text-bright text-sm font-mono whitespace-pre-wrap">{transcript}</p>
                 </div>
@@ -488,7 +574,7 @@ export function VoicePanel() {
               )}
             </div>
           ) : (
-            <UnavailableNote feature="STT" pkg="faster-whisper" />
+            <UnavailableNote feature="STT" pkg="transformers accelerate" />
           )}
         </GlassPanel>
 
@@ -507,6 +593,55 @@ export function VoicePanel() {
 
           {ttsAvailable ? (
             <div className="space-y-4">
+              {/* TTS engine info */}
+              {status?.tts && (
+                <div className="grid grid-cols-2 gap-1 text-xs font-mono">
+                  <span className="text-jarvis-text-dim">Engine</span>
+                  <span className="text-jarvis-text-bright">{status.tts.engine}</span>
+                  {status.tts.model && (
+                    <>
+                      <span className="text-jarvis-text-dim">Model</span>
+                      <span className="text-jarvis-text-bright truncate" title={status.tts.model}>
+                        {status.tts.model.split('/').pop()}
+                      </span>
+                    </>
+                  )}
+                  {status.tts.sampleRate && (
+                    <>
+                      <span className="text-jarvis-text-dim">Sample rate</span>
+                      <span className="text-jarvis-text-bright">{status.tts.sampleRate} Hz</span>
+                    </>
+                  )}
+                  {status.tts.voiceRefs && (
+                    <>
+                      <span className="text-jarvis-text-dim">Voice refs</span>
+                      <span className="text-jarvis-text-bright">
+                        EN: {status.tts.voiceRefs.en ? '✓' : '—'} | MN: {status.tts.voiceRefs.mn ? '✓' : '—'}
+                      </span>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Language selector */}
+              <div className="flex items-center gap-2">
+                <Globe size={12} className="text-jarvis-text-dim shrink-0" />
+                <span className="text-[11px] font-mono text-jarvis-text-dim">Language:</span>
+                {(['en', 'mn'] as TtsLang[]).map((l) => (
+                  <button
+                    key={l}
+                    onClick={() => setTtsLang(l)}
+                    className={`px-2.5 py-1 text-[10px] font-mono rounded border transition-colors ${
+                      ttsLang === l
+                        ? 'border-jarvis-green/60 text-jarvis-green bg-jarvis-green/10'
+                        : 'border-jarvis-border/30 text-jarvis-text-dim hover:text-jarvis-green hover:border-jarvis-green/30'
+                    }`}
+                  >
+                    {l === 'mn' ? 'Монгол' : 'English'}
+                  </button>
+                ))}
+              </div>
+
               {/* Playback visualizer */}
               <div className="bg-jarvis-bg rounded-lg border border-jarvis-border/30 p-2">
                 <AudioVisualizer isActive={false} isPlaying={isPlaying} />
@@ -587,9 +722,58 @@ export function VoicePanel() {
                   </m.div>
                 )}
               </AnimatePresence>
+
+              {/* Voice Reference Upload */}
+              <div className="border-t border-jarvis-border/20 pt-4">
+                <p className="text-[11px] font-mono text-jarvis-text-dim mb-2 flex items-center gap-1.5">
+                  <Upload size={10} />
+                  Voice Clone Reference (WAV, ≥3s)
+                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(['en', 'mn'] as TtsLang[]).map((l) => (
+                    <button
+                      key={l}
+                      onClick={() => setRefLang(l)}
+                      className={`px-2 py-1 text-[10px] font-mono rounded border transition-colors ${
+                        refLang === l
+                          ? 'border-jarvis-purple/60 text-jarvis-purple bg-jarvis-purple/10'
+                          : 'border-jarvis-border/30 text-jarvis-text-dim hover:border-jarvis-purple/40'
+                      }`}
+                    >
+                      {l === 'mn' ? 'Монгол' : 'English'}
+                    </button>
+                  ))}
+                  <button
+                    onClick={() => refInputRef.current?.click()}
+                    disabled={refUploadStatus === 'uploading'}
+                    className="px-3 py-1 text-[10px] font-mono rounded border border-jarvis-purple/40 text-jarvis-purple bg-jarvis-purple/5 hover:bg-jarvis-purple/10 transition-all flex items-center gap-1.5 disabled:opacity-50"
+                  >
+                    {refUploadStatus === 'uploading' ? (
+                      <><Loader2 size={10} className="animate-spin" /> Uploading…</>
+                    ) : refUploadStatus === 'done' ? (
+                      <><CheckCircle2 size={10} /> Uploaded</>
+                    ) : refUploadStatus === 'error' ? (
+                      <><AlertTriangle size={10} /> Failed</>
+                    ) : (
+                      <><Upload size={10} /> Upload {refLang.toUpperCase()} ref</>
+                    )}
+                  </button>
+                  <input
+                    ref={refInputRef}
+                    type="file"
+                    accept="audio/wav,audio/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (f) uploadVoiceRef(f);
+                      e.target.value = '';
+                    }}
+                  />
+                </div>
+              </div>
             </div>
           ) : (
-            <UnavailableNote feature="TTS" pkg="pyttsx3" />
+            <UnavailableNote feature="TTS" pkg="transformers soundfile" />
           )}
         </GlassPanel>
       </div>

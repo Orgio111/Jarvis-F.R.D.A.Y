@@ -97,8 +97,13 @@ class Settings(BaseSettings):
     tts_device: str = "auto"
     tts_model_cache_dir: str = "./data/tts"
 
-    # ─── Voice ────────────────────────────────────────────────────────────────
+    # ─── Voice (JarvisVoice — MN+EN bilingual) ───────────────────────────────
     voice_streaming_enabled: bool = True
+    # Device for JarvisVoice STT+TTS models: "auto" | "cuda" | "cpu" | "mps"
+    voice_device: str = "auto"
+    # Optional default voice reference WAVs for TTS (voice cloning)
+    voice_ref_en_path: str = ""   # path to EN reference WAV (≥3s)
+    voice_ref_mn_path: str = ""   # path to MN reference WAV (≥3s)
 
     # ─── Embeddings ───────────────────────────────────────────────────────────
     embeddings_enabled: bool = True
