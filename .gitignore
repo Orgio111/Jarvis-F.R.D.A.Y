@@ -101,7 +101,11 @@ docker-compose.override.yml
 
 # ─── Data / Models / Indexes ──────────────────────────────────────────────────
 data/
+!data/voice_refs/
+!data/voice_refs/*.wav
 backend/data/
+!backend/python-ai-service/data/voice_refs/
+!backend/python-ai-service/data/voice_refs/*.wav
 *.bin
 *.pt
 *.pth
