@@ -2,7 +2,7 @@
  * GraphCanvas — zero-dependency force-directed graph renderer using Canvas API.
  * Implements a simple Verlet integration with spring + repulsion forces.
  */
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import type { GraphNode, GraphEdge } from './useObsidian';
 
 interface Props {
@@ -45,8 +45,8 @@ export const GraphCanvas: React.FC<Props> = ({ nodes, edges, onNodeClick }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef   = useRef<number>(0);
   const simNodes  = useRef<GraphNode[]>([]);
-  const dragging  = useRef<{ node: GraphNode; ox: number; oy: number } | null>(null);
-  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const dragging   = useRef<{ node: GraphNode; ox: number; oy: number } | null>(null);
+  const hoveredId  = useRef<string | null>(null);
 
   const buildEdgeMap = useCallback(() => {
     const map = new Map<string, string[]>();
@@ -147,7 +147,7 @@ export const GraphCanvas: React.FC<Props> = ({ nodes, edges, onNodeClick }) => {
     for (const n of ns) {
       const r = NODE_RADIUS + (n.size > 500 ? 3 : n.size > 200 ? 2 : 0);
       const color = NODE_COLORS[n.type] ?? NODE_COLORS.note;
-      const isHovered = n.id === hoveredId;
+      const isHovered = n.id === hoveredId.current;
 
       ctx.beginPath();
       ctx.arc(n.x!, n.y!, r + (isHovered ? 3 : 0), 0, Math.PI * 2);
@@ -202,7 +202,7 @@ export const GraphCanvas: React.FC<Props> = ({ nodes, edges, onNodeClick }) => {
       dragging.current.node.vy = 0;
     }
     const node = getNodeAt(x, y);
-    setHoveredId(node?.id ?? null);
+    hoveredId.current = node?.id ?? null;
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -234,7 +234,7 @@ export const GraphCanvas: React.FC<Props> = ({ nodes, edges, onNodeClick }) => {
       onMouseMove={handleMouseMove}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
-      onMouseLeave={() => { setHoveredId(null); dragging.current = null; }}
+      onMouseLeave={() => { hoveredId.current = null; dragging.current = null; }}
     />
   );
 };
