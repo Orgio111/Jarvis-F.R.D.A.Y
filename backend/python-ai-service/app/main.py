@@ -172,6 +172,19 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("workflow_init_warning", error=str(exc))
 
+    # ── Multi-Agent Communication System ──────────────────────────────────────
+    try:
+        from app.multi_agent.agent_bus import AgentBus
+        from app.multi_agent.agent_factory import AgentFactory, AgentRegistry
+        from app.multi_agent.blackboard import BlackboardRegistry
+        AgentBus.get()          # initialize singleton
+        AgentFactory.get()      # initialize singleton
+        AgentRegistry.get()     # initialize singleton
+        BlackboardRegistry.get()
+        logger.info("multi_agent_system_initialized")
+    except Exception as exc:
+        logger.warning("multi_agent_init_warning", error=str(exc))
+
     # ── Swarm Manager (v3 Distributed Autonomous Swarm Intelligence) ──
     try:
         from app.services.swarm_manager_service import SwarmManagerService
@@ -356,3 +369,6 @@ app.include_router(orchestrate_router)
 # ── Skill Marketplace (Skill OS) ──────────────────────────────────────────────
 from app.routers.marketplace import router as marketplace_router
 app.include_router(marketplace_router)
+
+from app.routers.multi_agent import router as multi_agent_router
+app.include_router(multi_agent_router)
