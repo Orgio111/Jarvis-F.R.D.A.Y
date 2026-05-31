@@ -491,7 +491,7 @@ function PlanStepRow({
       {/* Parallel badge */}
       {step.parallel && (
         <span className="shrink-0">
-          <GitMerge size={10} className="text-jarvis-purple" title="parallel" />
+          <GitMerge size={10} className="text-jarvis-purple" aria-label="parallel" />
         </span>
       )}
       {step.depends_on.length > 0 && (

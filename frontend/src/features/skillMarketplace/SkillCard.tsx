@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { m } from 'framer-motion';
 import {
   Star, Download, Trash2, Globe, Code2, Zap, CheckCircle, XCircle,
-  TrendingUp, Clock, BarChart3, Tag, GitBranch, Eye,
+  Clock, BarChart3, Tag, GitBranch, Eye,
 } from 'lucide-react';
 import type { Skill } from './types';
 

@@ -105,11 +105,11 @@ export function useAgentRun() {
             continue;
           }
 
-          const { event, data } = parsed as { event: string; data: Record<string, unknown> };
+          const { event, data } = parsed as { event: string; data: unknown };
 
           switch (event) {
             case 'status': {
-              const d = data as StatusEvent;
+              const d = data as unknown as StatusEvent;
               const incoming = new Set(d.step_ids ?? (d.step_id ? [d.step_id] : []));
               activeIds = new Set([...activeIds, ...incoming]);
               patch({
@@ -121,7 +121,7 @@ export function useAgentRun() {
             }
 
             case 'plan': {
-              const d = data as PlanEvent;
+              const d = data as unknown as PlanEvent;
               patch({
                 plan: d.steps,
                 planSummary: d.summary,
@@ -130,7 +130,7 @@ export function useAgentRun() {
             }
 
             case 'agent_result': {
-              const d = data as AgentResultEvent;
+              const d = data as unknown as AgentResultEvent;
               accLogs = [...accLogs, d];
               const newEdits = d.data?.edits as CodeEdit[] | undefined;
               if (newEdits?.length) {
@@ -141,12 +141,12 @@ export function useAgentRun() {
             }
 
             case 'review': {
-              patch({ review: data as ReviewEvent });
+              patch({ review: data as unknown as ReviewEvent });
               break;
             }
 
             case 'step_error': {
-              const d = data as { step_id: string; error: string };
+              const d = data as unknown as { step_id: string; error: string };
               completedIds = new Set([...completedIds, d.step_id]);
               activeIds.delete(d.step_id);
               patch({
@@ -157,7 +157,7 @@ export function useAgentRun() {
             }
 
             case 'done': {
-              const d = data as DoneEvent;
+              const d = data as unknown as DoneEvent;
               patch({
                 status: 'done' as RunStatus,
                 doneInfo: d,
@@ -171,7 +171,7 @@ export function useAgentRun() {
             case 'error': {
               patch({
                 status: 'error' as RunStatus,
-                error: (data as { message: string }).message,
+                error: (data as unknown as { message: string }).message,
               });
               break;
             }
