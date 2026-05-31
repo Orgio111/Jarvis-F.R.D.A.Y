@@ -120,12 +120,82 @@ func Build(cfg *config.Config, aiProxy *proxy.AIProxy, redis *redisclient.Client
 		r.Get("/api/local-actions/pending", localActH.ListPending)
 		r.Post("/api/local-actions/{actionId}/execute", localActH.Execute)
 		r.Post("/api/local-actions/approvals/{approvalId}/approve", localActH.Approve)
-		r.Post("/api/local-actions/approvals/{approvalId}/deny", localActH.Deny)
+		r.Post("/api/local-actions/approvals/{approvalId}/deny", localActH.Deny)		// Swarm Manager (v3 Distributed Autonomous Swarm Intelligence)
+		r.Get("/api/swarm/status", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/swarm/status")
+		})
+		r.Get("/api/swarm/health", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/swarm/health")
+		})
+		r.Get("/api/swarm/swarms", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/swarm/swarms")
+		})
+		r.Post("/api/swarm/swarms", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyPost(aiProxy, w, r, "/swarm/swarms")
+		})
+		r.Delete("/api/swarm/swarms/{swarm_id}", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyDelete(aiProxy, w, r, "/swarm/swarms/"+chi.URLParam(r, "swarm_id"))
+		})
+		r.Post("/api/swarm/auto-scale", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyPost(aiProxy, w, r, "/swarm/auto-scale")
+		})
+		r.Post("/api/swarm/heal", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyPost(aiProxy, w, r, "/swarm/heal")
+		})
+		r.Get("/api/swarm/route", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/swarm/route")
+		})
+
+		// Memory Fabric (v3 Multi-Layered Cognitive Memory)
+		r.Get("/api/memory-fabric/status", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/memory-fabric/status")
+		})
+		r.Get("/api/memory-fabric/stats", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/memory-fabric/stats")
+		})
+		r.Post("/api/memory-fabric/store", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyPost(aiProxy, w, r, "/memory-fabric/store")
+		})
+		r.Get("/api/memory-fabric/search", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/memory-fabric/search")
+		})
+		r.Get("/api/memory-fabric/query", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/memory-fabric/query")
+		})
+		r.Get("/api/memory-fabric/cross-layer", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/memory-fabric/cross-layer")
+		})
+		r.Get("/api/memory-fabric/recent", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/memory-fabric/recent")
+		})
+		r.Post("/api/memory-fabric/prune", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyPost(aiProxy, w, r, "/memory-fabric/prune")
+		})
+
+		// Self-Evolution Engine (v3 Self-Improvement)
+		r.Get("/api/evolution/status", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/evolution/status")
+		})
+		r.Get("/api/evolution/trials", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/evolution/trials")
+		})
+		r.Get("/api/evolution/best-practices", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/evolution/best-practices")
+		})
+		r.Post("/api/evolution/propose", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyPost(aiProxy, w, r, "/evolution/propose")
+		})
+		r.Post("/api/evolution/trial", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyPost(aiProxy, w, r, "/evolution/trial")
+		})
+		r.Get("/api/evolution/should-mutate", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/evolution/should-mutate")
+		})
 
 		// 404 with canonical envelope
-		r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-			contracts.WriteNotFound(w, mw.GetCorrelationID(r))
-		})
+			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+				contracts.WriteNotFound(w, mw.GetCorrelationID(r))
+			})
 	})
 
 	// ─── WebSocket events (no session headers required — protocol upgrade) ────

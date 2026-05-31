@@ -55,7 +55,7 @@ async def store_memory(
 async def get_memory(entry_id: str) -> dict[str, Any]:
     """Get a specific memory entry by ID."""
     svc = _get_service()
-    entry = svc.get(entry_id)
+    entry = svc.get_entry(entry_id)
     if not entry:
         return JSONResponse(status_code=404, content=error("not_found", f"Entry {entry_id} not found"))
     return success(entry)
@@ -131,4 +131,4 @@ async def prune_memory() -> dict[str, Any]:
 async def memory_stats() -> dict[str, Any]:
     """Get memory fabric statistics."""
     svc = _get_service()
-    return success_response(svc.stats())
+    return success(svc.stats())

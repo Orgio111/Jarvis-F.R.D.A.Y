@@ -93,6 +93,13 @@ func WriteInternalError(w http.ResponseWriter, correlationID string) {
 	WriteError(w, correlationID, http.StatusInternalServerError, "internal_error", "An internal error occurred.", nil)
 }
 
+// WriteRaw writes a raw status code and body without wrapping in a canonical
+// envelope — used by passthrough proxy handlers that already receive enveloped
+// responses from the Python AI service.
+func WriteRaw(w http.ResponseWriter, statusCode int, body any) {
+	writeJSON(w, statusCode, body)
+}
+
 func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.Header().Set("X-Content-Type-Options", "nosniff")

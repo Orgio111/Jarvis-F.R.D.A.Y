@@ -85,6 +85,11 @@ func (p *AIProxy) Patch(ctx context.Context, path string, body any, correlationI
 	return p.do(ctx, http.MethodPatch, path, body, correlationID, sessionID)
 }
 
+// Delete issues a DELETE request to the Python AI service.
+func (p *AIProxy) Delete(ctx context.Context, path string, correlationID, sessionID string) (*ProxyResult, error) {
+	return p.do(ctx, http.MethodDelete, path, nil, correlationID, sessionID)
+}
+
 func (p *AIProxy) do(ctx context.Context, method, path string, body any, correlationID, sessionID string) (*ProxyResult, error) {
 	url := p.baseURL + path
 

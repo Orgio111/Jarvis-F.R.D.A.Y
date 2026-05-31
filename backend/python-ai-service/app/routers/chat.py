@@ -256,7 +256,7 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
 
     # ── Semantic cache check (before memory enrich — uses raw messages) ───────
     from app.cache.semantic_cache import SemanticCache
-    cache = SemanticCache.get()
+    cache = SemanticCache.get_instance()
     if cache and not model_id:
         # Resolve model first (needed for exact cache key) — use cache or quick override
         quick_model = (

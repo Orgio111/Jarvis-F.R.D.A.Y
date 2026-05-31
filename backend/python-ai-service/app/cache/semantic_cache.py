@@ -14,7 +14,7 @@ Both layers are optional — any failure falls through gracefully.
 TTL is configurable (default 24 h).
 
 Usage:
-    cache = SemanticCache.get()
+    cache = SemanticCache.get_instance()
     hit = await cache.get(messages, model_id)
     if hit:
         return hit  # str response
@@ -71,7 +71,7 @@ class SemanticCache:
         return cls._instance
 
     @classmethod
-    def get(cls) -> "SemanticCache | None":
+    def get_instance(cls) -> "SemanticCache | None":
         return cls._instance
 
     # ── Boot ──────────────────────────────────────────────────────────────────

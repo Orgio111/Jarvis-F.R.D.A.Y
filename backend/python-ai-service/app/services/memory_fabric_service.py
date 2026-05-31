@@ -51,8 +51,8 @@ class MemoryFabricService:
         self._initialized = False
         if _MEMORY_FABRIC_AVAILABLE:
             config = FabricConfig(
-                max_entries_per_layer=settings.get("memory_fabric_max_entries", 5000),
-                enable_auto_prune=settings.get("memory_fabric_auto_prune", True),
+                max_entries_per_layer=getattr(settings, "memory_fabric_max_entries", 5000),
+                enable_auto_prune=getattr(settings, "memory_fabric_auto_prune", True),
             )
             self._fabric = MemoryFabric.get_or_create(config)
             self._initialized = True
@@ -71,6 +71,22 @@ class MemoryFabricService:
             raise RuntimeError("MemoryFabricService not initialized")
         return cls._instance
 
+    def _ensure_available(self) -> None:
+        """Raise if the underlying MemoryFabric is not available."""
+        if self._fabric is None:
+            raise RuntimeError("MemoryFabric is not available — package not installed")
+
+    def _empty_status(self) -> dict:
+        """Return a default status when fabric is unavailable."""
+        return {
+            "initialized": False,
+            "available": False,
+            "layers": ["episodic", "semantic", "procedural"],
+            "totalEntries": 0,
+            "entriesPerLayer": {},
+            "reason": "memory-fabric package not installed",
+        }
+
     def store(
         self,
         content: str,
@@ -82,6 +98,7 @@ class MemoryFabricService:
         metadata: dict | None = None,
     ) -> dict:
         """Store a memory entry."""
+        self._ensure_available()
         entry = self._fabric.store(
             content=content,
             layer=layer,
@@ -93,13 +110,15 @@ class MemoryFabricService:
         )
         return entry.to_dict()
 
-    def get(self, entry_id: str) -> dict | None:
+    def get_entry(self, entry_id: str) -> dict | None:
         """Get a specific memory entry."""
+        self._ensure_available()
         entry = self._fabric.get(entry_id)
         return entry.to_dict() if entry else None
 
     def search(self, text: str, layer: str | None = None, limit: int = 20) -> list[dict]:
         """Search memory by text content."""
+        self._ensure_available()
         return self._fabric.search(text, layer=layer, limit=limit)
 
     def query(
@@ -112,6 +131,7 @@ class MemoryFabricService:
         source: str | None = None,
     ) -> list[dict]:
         """Query memory with multiple filters."""
+        self._ensure_available()
         query = MemoryQuery(
             text=text,
             layers=[MemoryLayer(l) for l in (layers or ["episodic", "semantic", "procedural"])],
@@ -124,23 +144,29 @@ class MemoryFabricService:
 
     def cross_layer_query(self, topic: str, limit_per_layer: int = 5) -> dict:
         """Query all three layers for a topic."""
+        self._ensure_available()
         return self._fabric.cross_layer_query(topic, limit_per_layer)
 
     def get_recent(self, layer: str | None = None, limit: int = 10) -> list[dict]:
         """Get recent entries."""
+        self._ensure_available()
         return self._fabric.get_recent(layer=layer, limit=limit)
 
     def get_by_source(self, source: str, limit: int = 20) -> list[dict]:
         """Get entries from a specific source."""
+        self._ensure_available()
         return self._fabric.get_by_source(source, limit=limit)
 
     def prune(self) -> dict:
         """Prune stale/low-importance entries."""
+        self._ensure_available()
         removed = self._fabric.prune()
         return {"pruned": removed, "remaining": self._fabric.stats()["totalEntries"]}
 
     def stats(self) -> dict:
         """Get memory fabric statistics."""
+        if self._fabric is None:
+            return self._empty_status()
         return self._fabric.stats()
 
     def get_status(self) -> dict:

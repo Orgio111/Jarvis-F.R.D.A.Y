@@ -110,6 +110,8 @@ class SwarmManagerService:
 
         Maps task types to swarm roles similar to SmartRouter's routing.
         """
+        if self._manager is None:
+            return {"swarmId": None, "role": task_type, "available": False, "reason": "package not installed"}
         role_map = {
             "code": SwarmRole.CODING,
             "research": SwarmRole.RESEARCH,
@@ -136,22 +138,45 @@ class SwarmManagerService:
 
     def assign_to_swarm(self, swarm_id: str, agent_id: str, task_id: str) -> bool:
         """Assign a task to a specific agent within a swarm."""
+        if self._manager is None:
+            return False
         return self._manager.assign_task(swarm_id, agent_id, task_id)
 
     def complete_in_swarm(self, swarm_id: str, agent_id: str, success: bool, latency_ms: float, confidence: float = 0.0) -> None:
         """Mark a task as completed in a swarm."""
+        if self._manager is None:
+            return
         self._manager.complete_task(swarm_id, agent_id, success, latency_ms, confidence)
 
     def get_swarm(self, swarm_id: str) -> dict[str, Any] | None:
+        if self._manager is None:
+            return None
         return self._manager.get_swarm(swarm_id)
 
     def list_swarms(self) -> list[dict[str, Any]]:
+        if self._manager is None:
+            return []
         return self._manager.list_swarms()
 
     def health_check_all(self) -> list[dict]:
+        if self._manager is None:
+            return []
         return self._manager.health_check_all()
 
+    def _empty_status(self) -> dict[str, Any]:
+        return {
+            "initialized": False,
+            "available": False,
+            "swarmRoles": [],
+            "activeSwarms": 0,
+            "totalAgents": 0,
+            "healthy": False,
+            "reason": "swarm-manager package not installed",
+        }
+
     def get_status(self) -> dict[str, Any]:
+        if self._manager is None:
+            return self._empty_status()
         status = self._manager.get_status()
         status.update({
             "initialized": self._initialized,
@@ -161,6 +186,8 @@ class SwarmManagerService:
 
     def spawn_swarm(self, role: str, min_agents: int = 1, max_agents: int = 3) -> dict[str, Any]:
         """Spawn a custom swarm by role name."""
+        if self._manager is None:
+            return {"success": False, "error": "SwarmManager not available — package not installed"}
         try:
             role_enum = SwarmRole(role)
         except ValueError:
@@ -178,6 +205,8 @@ class SwarmManagerService:
 
     def terminate_swarm(self, swarm_id: str) -> bool:
         """Terminate a swarm."""
+        if self._manager is None:
+            return False
         # Remove from our tracking
         for role, sid in list(self._swarm_ids.items()):
             if sid == swarm_id:
@@ -187,6 +216,8 @@ class SwarmManagerService:
 
     def auto_scale_all(self) -> list[dict[str, Any]]:
         """Run auto-scaling on all swarms."""
+        if self._manager is None:
+            return []
         results = []
         for swarm_id in self._manager._swarms:
             result = self._manager.auto_scale(swarm_id)
@@ -196,6 +227,8 @@ class SwarmManagerService:
 
     def heal_all(self) -> list[dict[str, Any]]:
         """Run self-healing on all degraded swarms."""
+        if self._manager is None:
+            return []
         results = []
         for swarm_id in self._manager._swarms:
             result = self._manager.heal_swarm(swarm_id)

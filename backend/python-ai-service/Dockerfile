@@ -8,7 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy project metadata first for layer caching
-COPY pyproject.toml ./
+COPY backend/python-ai-service/pyproject.toml ./
 
 # Hard-require numpy because app imports it at module import time.
 RUN pip install --no-cache-dir "numpy>=1.26.0"
@@ -17,8 +17,17 @@ RUN pip install --no-cache-dir "numpy>=1.26.0"
 # Use non-editable install to avoid PEP660 build_editable hook issues.
 RUN pip install --no-cache-dir "."
 
+# Copy and install supplementary packages (swarm, memory, evolution)
+COPY packages/swarm-manager/ ./packages/swarm-manager/
+COPY packages/memory-fabric/ ./packages/memory-fabric/
+COPY packages/self-evolution/ ./packages/self-evolution/
+RUN pip install --no-cache-dir \
+    ./packages/swarm-manager \
+    ./packages/memory-fabric \
+    ./packages/self-evolution
+
 # Copy source
-COPY app/ ./app/
+COPY backend/python-ai-service/app/ ./app/
 
 ENV APP_HOST=0.0.0.0
 ENV APP_PORT=8100
@@ -42,7 +51,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN ln -sf /usr/bin/python3.11 /usr/bin/python3 && ln -sf /usr/bin/python3 /usr/bin/python
 
 WORKDIR /app
-COPY pyproject.toml ./
+COPY backend/python-ai-service/pyproject.toml ./
 
 # Upgrade pip / build tools
 RUN pip install --no-cache-dir --upgrade pip "setuptools>=70" wheel
@@ -60,6 +69,15 @@ RUN pip install --no-cache-dir "numpy>=1.26.0"
 # ── Step 3: base service deps (no torch pulled here — already installed) ───────
 RUN pip install --no-cache-dir "."
 
+# ── Step 3b: supplementary packages (swarm, memory, evolution) ─────────────────
+COPY packages/swarm-manager/ ./packages/swarm-manager/
+COPY packages/memory-fabric/ ./packages/memory-fabric/
+COPY packages/self-evolution/ ./packages/self-evolution/
+RUN pip install --no-cache-dir \
+    ./packages/swarm-manager \
+    ./packages/memory-fabric \
+    ./packages/self-evolution
+
 # ── Step 4: GPU extras (sentence-transformers, faiss-cpu, faster-whisper, onnx, TTS)
 # torch is already present so pip won't re-download it.
 # TTS (Coqui) uses torch for GPU inference — listed last so PyTorch wheel isn't overwritten.
@@ -70,7 +88,7 @@ RUN pip install --no-cache-dir \
     "onnxruntime-gpu>=1.18.0" \
     "TTS>=0.22.0"
 
-COPY app/ ./app/
+COPY backend/python-ai-service/app/ ./app/
 
 ENV APP_HOST=0.0.0.0
 ENV APP_PORT=8100

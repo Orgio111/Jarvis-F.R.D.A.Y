@@ -26,18 +26,16 @@ services:
   # ── Qdrant vector DB ─────────────────────────────────────────────────────────
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: jarvis-qdrant
+    container_name: jarvis-friday-qdrant
     restart: unless-stopped
     ports:
       - "6333:6333"   # REST API
       - "6334:6334"   # gRPC
     volumes:
       - qdrant-data:/qdrant/storage
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    # NOTE: healthcheck intentionally removed.
+    # The previous healthcheck used `curl`, which may not exist inside the qdrant image,
+    # causing the container to be marked as `unhealthy` and blocking startup.
     logging: *default-logging
 
   # ── Redis ───────────────────────────────────────────────────────────────────
@@ -82,8 +80,8 @@ services:
   # ── Python AI service ────────────────────────────────────────────────────────
   python-ai-service:
     build:
-      context: ../backend/python-ai-service
-      dockerfile: Dockerfile
+      context: ../
+      dockerfile: backend/python-ai-service/Dockerfile
       # Default to the CPU/base image. GPU users should use docker-compose.gpu.yml
       # or set PYTHON_AI_BUILD_TARGET=gpu in their .env file.
       target: "${PYTHON_AI_BUILD_TARGET:-base}"
@@ -140,7 +138,7 @@ services:
       rust-broker:
         condition: service_healthy
       qdrant:
-        condition: service_healthy
+        condition: service_started
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8100/health"]
       interval: 10s
@@ -175,7 +173,7 @@ services:
       GPU_ENABLED: "${GPU_ENABLED:-true}"
       GPU_REQUIRED: "false"
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     depends_on:
       python-ai-service:
         condition: service_healthy
