@@ -26,7 +26,7 @@ def get_workload_router() -> WorkloadRouter | None:
     return _workload_router
 
 
-def _build_gpu_status() -> dict:
+async def _build_gpu_status() -> dict:
     settings = get_settings()
     info = GPUDetector.get_info()
     wr = _workload_router
@@ -64,6 +64,16 @@ def _build_gpu_status() -> dict:
         "rag": "cpu", "memorySynthesis": "cpu",
     }
 
+    # VRAM cache status
+    vram_cache_status = {"enabled": False}
+    if wr is not None:
+        cache = wr.get_vram_cache()
+        if cache is not None:
+            try:
+                vram_cache_status = await cache.get_stats()
+            except Exception:
+                pass
+
     return {
         "enabled": settings.gpu_enabled,
         "available": info.cuda_available,
@@ -82,6 +92,7 @@ def _build_gpu_status() -> dict:
             "powerWatts": 0.0,
         },
         "workloads": workloads,
+        "vramCache": vram_cache_status,
         "fallback": {
             "cpuFallbackAllowed": settings.gpu_allow_cpu_fallback,
             "cpuFallbackActive": fallback_active,
@@ -93,7 +104,7 @@ def _build_gpu_status() -> dict:
 @router.get("/gpu/status")
 async def gpu_status(request: Request) -> dict:
     correlation_id = request.headers.get("x-correlation-id")
-    return success(_build_gpu_status(), correlation_id)
+    return success(await _build_gpu_status(), correlation_id)
 
 
 @router.get("/gpu/metrics")

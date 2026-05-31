@@ -49,6 +49,8 @@ class MemoryFabricService:
 
     def __init__(self, settings: Settings):
         self._initialized = False
+        self._vram_cache: Any = None
+
         if _MEMORY_FABRIC_AVAILABLE:
             config = FabricConfig(
                 max_entries_per_layer=getattr(settings, "memory_fabric_max_entries", 5000),
@@ -59,6 +61,18 @@ class MemoryFabricService:
         else:
             self._fabric = None
             logger.warning("memory_fabric_unavailable", reason="package_not_installed")
+
+        # Attempt to wire up the GPU VRAM cache from the workload router
+        try:
+            from app.routers.gpu import get_workload_router
+            wr = get_workload_router()
+            if wr is not None:
+                cache = wr.get_vram_cache()
+                if cache is not None:
+                    self._vram_cache = cache
+                    logger.info("memory_fabric_vram_cache_wired")
+        except Exception:
+            pass
 
     @classmethod
     def initialize(cls, settings: Settings) -> MemoryFabricService:
@@ -97,7 +111,7 @@ class MemoryFabricService:
         confidence: float = 0.8,
         metadata: dict | None = None,
     ) -> dict:
-        """Store a memory entry."""
+        """Store a memory entry with optional GPU embedding cache."""
         self._ensure_available()
         entry = self._fabric.store(
             content=content,
@@ -108,6 +122,16 @@ class MemoryFabricService:
             confidence=confidence,
             metadata=metadata,
         )
+
+        # Warm the GPU VRAM cache in the background
+        if self._vram_cache is not None and content:
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self._vram_cache.get_or_compute(content))
+            except RuntimeError:
+                asyncio.ensure_future(self._vram_cache.get_or_compute(content))
+
         return entry.to_dict()
 
     def get_entry(self, entry_id: str) -> dict | None:
@@ -116,9 +140,35 @@ class MemoryFabricService:
         entry = self._fabric.get(entry_id)
         return entry.to_dict() if entry else None
 
-    def search(self, text: str, layer: str | None = None, limit: int = 20) -> list[dict]:
-        """Search memory by text content."""
+    async def search(self, text: str, layer: str | None = None, limit: int = 20) -> list[dict]:
+        """Search memory by text content — uses GPU VRAM cache for fast similarity."""
         self._ensure_available()
+
+        # If GPU VRAM cache is available, use it for accelerated search
+        if self._vram_cache is not None and self._vram_cache.is_available:
+            try:
+                results = await self._vram_cache.search(text, top_k=limit)
+                if results:
+                    # Map GPU cache results to fabric entries
+                    ranked = []
+                    for r in results:
+                        hash_val = r.get("hash", "")
+                        score = r.get("score", 0.0)
+                        # Look up by hash in fabric entries
+                        for entry in self._fabric._entries.values():
+                            entry_hash = self._hash_entry_content(entry.content)
+                            if entry_hash == hash_val:
+                                d = entry.to_dict()
+                                d["gpu_score"] = score
+                                ranked.append(d)
+                                break
+                    if ranked:
+                        ranked.sort(key=lambda x: x.get("gpu_score", 0), reverse=True)
+                        return ranked[:limit]
+            except Exception:
+                pass
+
+        # Fall back to standard fabric text search
         return self._fabric.search(text, layer=layer, limit=limit)
 
     def query(
@@ -169,10 +219,22 @@ class MemoryFabricService:
             return self._empty_status()
         return self._fabric.stats()
 
-    def get_status(self) -> dict:
+    async def get_status(self) -> dict:
         stats = self.stats()
         stats.update({
             "initialized": self._initialized,
             "layers": ["episodic", "semantic", "procedural"],
         })
+        # Append VRAM cache status if available
+        if self._vram_cache is not None and self._vram_cache.is_available:
+            try:
+                cache_stats = await self._vram_cache.get_stats()
+                stats["vramCache"] = cache_stats
+            except Exception:
+                pass
         return stats
+
+    @staticmethod
+    def _hash_entry_content(content: str) -> str:
+        import hashlib
+        return hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]

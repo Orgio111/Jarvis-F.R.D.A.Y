@@ -114,7 +114,7 @@ class Settings(BaseSettings):
 
     # ─── FAISS ────────────────────────────────────────────────────────────────
     faiss_enabled: bool = True
-    faiss_gpu_enabled: bool = False
+    faiss_gpu_enabled: bool = True
     faiss_index_path: str = "./data/faiss/index"
     faiss_gpu_device: int = 0
 
@@ -123,6 +123,13 @@ class Settings(BaseSettings):
     vision_gpu_enabled: bool = True
     vision_device: str = "auto"
     vision_model_cache_dir: str = "./data/vision"
+
+    # ─── GPU VRAM Cache ──────────────────────────────────────────────────────
+    vram_cache_enabled: bool = True
+    vram_cache_budget_mb: int = 1024
+    vram_cache_embeddings_enabled: bool = True
+    vram_cache_model: str = "sentence-transformers/all-MiniLM-L6-v2"
+    vram_cache_device: str = "auto"
 
     # ─── GPU workload flags ───────────────────────────────────────────────────
     rag_gpu_acceleration_enabled: bool = True

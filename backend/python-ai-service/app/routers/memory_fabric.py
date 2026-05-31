@@ -25,7 +25,7 @@ def _get_service():
 async def get_status() -> dict[str, Any]:
     """Get memory fabric status."""
     svc = _get_service()
-    return success(svc.get_status())
+    return success(await svc.get_status())
 
 
 @router.post("/store")
@@ -69,7 +69,7 @@ async def search_memory(
 ) -> dict[str, Any]:
     """Search memory by text content."""
     svc = _get_service()
-    results = svc.search(q, layer=layer, limit=limit)
+    results = await svc.search(q, layer=layer, limit=limit)
     return success({"results": results, "count": len(results)})
 
 

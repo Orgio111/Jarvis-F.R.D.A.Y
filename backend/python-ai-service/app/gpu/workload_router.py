@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
 from app.core.config import Settings
 from app.gpu.detector import GPUDetector
@@ -45,6 +45,7 @@ class WorkloadRouter:
       - holds a per-workload semaphore so concurrent calls don't OOM the GPU,
       - picks the actual CUDA device (multi-GPU, VRAM-aware),
       - logs queue waits for observability.
+      - owns the GPU VRAM cache for embedding acceleration.
     """
 
     def __init__(self, settings: Settings):
@@ -55,8 +56,51 @@ class WorkloadRouter:
         self._cuda_devices = DeviceManager.list_cuda_devices()
         self._rr_counter = 0
         self._rr_lock = asyncio.Lock()
+
+        # ─── VRAM cache ────────────────────────────────────────────────────────
+        self._vram_cache: Any = None
+        self._vram_cache_enabled = settings.vram_cache_enabled
+        self._vram_cache_budget_mb = settings.vram_cache_budget_mb
+
         self._resolve_all()
         self._init_semaphores()
+
+        # Initialize VRAM cache after resolution
+        if self._vram_cache_enabled and self._cuda_available:
+            try:
+                from app.gpu.vram_cache import GpuVramCache
+                self._vram_cache = GpuVramCache(
+                    budget_mb=self._vram_cache_budget_mb,
+                    enabled=self._vram_cache_enabled,
+                    device=settings.vram_cache_device,
+                    model_name=settings.vram_cache_model,
+                )
+                asyncio.ensure_future(self._init_vram_cache())
+            except Exception as exc:
+                logger.warning("vram_cache_init_warning", error=str(exc))
+
+    async def _init_vram_cache(self) -> None:
+        """Initialize VRAM cache in background (non-blocking)."""
+        if self._vram_cache is None:
+            return
+        try:
+            await self._vram_cache.initialize()
+            if self._vram_cache.is_available:
+                logger.info(
+                    "vram_cache_ready",
+                    device=self._vram_cache.resolved_device,
+                    budget_mb=self._vram_cache_budget_mb,
+                )
+            else:
+                logger.info("vram_cache_not_available")
+        except Exception as exc:
+            logger.warning("vram_cache_init_error", error=str(exc))
+
+    def get_vram_cache(self) -> Any:
+        """Return the VRAM cache instance or None."""
+        if self._vram_cache is not None and self._vram_cache.is_available:
+            return self._vram_cache
+        return None
 
     # ─── Resolution ──────────────────────────────────────────────────────────
 

@@ -38,6 +38,7 @@ from app.routers import workflows_engine as workflows_engine_router
 from app.routers import swarm_manager as swarm_manager_router
 from app.routers import memory_fabric as memory_fabric_router
 from app.routers import self_evolution as self_evolution_router
+from app.routers import stt as stt_router
 
 logger = get_logger(__name__)
 
@@ -209,6 +210,15 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("self_evolution_init_warning", error=str(exc))
 
+    # ── STT Service (faster-whisper GPU) ──
+    if settings.stt_enabled:
+        try:
+            from app.services.stt_service import STTService
+            STTService.initialize(settings)
+            logger.info("stt_service_initialized")
+        except Exception as exc:
+            logger.warning("stt_service_init_warning", error=str(exc))
+
     # ── Skill Evolution background loop ────────────────────────────────────────
     try:
         import asyncio as _asyncio
@@ -365,6 +375,9 @@ app.include_router(self_evolution_router.router)
 
 # Multi-Agent Orchestration (Phase 10 — free OpenRouter models)
 app.include_router(orchestrate_router)
+
+# STT (faster-whisper GPU)
+app.include_router(stt_router.router)
 
 # ── Skill Marketplace (Skill OS) ──────────────────────────────────────────────
 from app.routers.marketplace import router as marketplace_router

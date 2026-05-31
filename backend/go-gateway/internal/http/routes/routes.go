@@ -77,8 +77,13 @@ func Build(cfg *config.Config, aiProxy *proxy.AIProxy, redis *redisclient.Client
 		voiceH := handlers.NewVoiceHandler(cfg, aiProxy)
 		r.Get("/api/voice/status", voiceH.Status)
 		r.Post("/api/voice/stt", voiceH.STT)
-		r.Post("/api/voice/tts", voiceH.TTS)
+	r.Post("/api/voice/tts", voiceH.TTS)
 		r.Post("/api/voice/set-ref", voiceH.SetRef)
+
+		// STT (faster-whisper GPU)
+		sttH := handlers.NewSTTHandler(cfg, aiProxy)
+		r.Get("/api/stt/status", sttH.Status)
+		r.Post("/api/stt/transcribe", sttH.Transcribe)
 
 		// Memory
 		memoryH := handlers.NewMemoryHandler(cfg, aiProxy)
