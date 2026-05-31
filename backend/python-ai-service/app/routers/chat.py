@@ -401,6 +401,26 @@ async def chat_completions(request: Request, db=Depends(get_db)) -> Any:
             if cache:
                 await cache.set(messages, current_model_id, content)
 
+            # ── Self-growing: detect missing capability in LLM response ────────
+            try:
+                from app.services.skill_registry import detect_missing_capability
+                cap_hint = await detect_missing_capability(db, user_msg_raw, content)
+                if cap_hint:
+                    from app.services.skill_service import generate_and_store
+                    asyncio.ensure_future(
+                        generate_and_store(
+                            db,
+                            name=cap_hint[:60].replace(" ", "_").replace("/", "_"),
+                            description=cap_hint,
+                            task_context=user_msg_raw,
+                            category="auto_generated",
+                            origin="self_growing",
+                        )
+                    )
+                    logger.info("self_growing_skill_triggered", capability=cap_hint[:60])
+            except Exception as _sg_exc:
+                logger.debug("self_growing_skipped", error=str(_sg_exc))
+
             return success(
                 {
                     "messageId": f"msg_{uuid4()}",

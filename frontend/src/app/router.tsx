@@ -32,6 +32,7 @@ const SwarmPage                = lazy(() => import('@/features/swarm/SwarmManage
 const MemoryFabricPage         = lazy(() => import('@/features/memoryFabric/MemoryFabricPanel').then(m => ({ default: m.MemoryFabricPanel })));
 const SelfEvolutionPage        = lazy(() => import('@/features/selfEvolution/SelfEvolutionPanel').then(m => ({ default: m.SelfEvolutionPanel })));
 const AgentRunPage             = lazy(() => import('@/features/agentRun/AgentRunPanel').then(m => ({ default: m.AgentRunPanel })));
+const SkillMarketplacePage     = lazy(() => import('@/features/skillMarketplace/SkillMarketplacePage').then(m => ({ default: m.SkillMarketplacePage })));
 
 function NotFoundPage() {
   return (
@@ -168,6 +169,13 @@ export function AppRouter() {
         <SuspensePage skeleton="search">
           <div className="h-full overflow-auto">
             <SelfEvolutionPage />
+          </div>
+        </SuspensePage>
+      } />
+      <Route path="/skills" element={
+        <SuspensePage skeleton="search">
+          <div className="h-full overflow-auto">
+            <SkillMarketplacePage />
           </div>
         </SuspensePage>
       } />

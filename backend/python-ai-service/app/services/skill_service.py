@@ -135,15 +135,26 @@ async def execute(
 
     elapsed = round((time.perf_counter() - start) * 1000, 1)
 
-    # Update counters + rolling quality score
-    row.execution_count += 1
-    if success:
-        row.success_count += 1
-    row.quality_score = round(row.success_count / max(row.execution_count, 1), 4)
-    row.updated_at = time.time()
-    await db.commit()
+    # Update counters + trust_score via registry (weighted formula)
+    from app.services.skill_registry import update_after_execution as _registry_update
+    try:
+        await _registry_update(db, skill_id, success=success, latency_ms=elapsed)
+    except Exception as _reg_exc:
+        # Fallback to legacy simple update if registry fails
+        logger.warning("registry_update_fallback", error=str(_reg_exc))
+        row.execution_count += 1
+        if success:
+            row.success_count += 1
+        row.quality_score = round(row.success_count / max(row.execution_count, 1), 4)
+        row.updated_at = time.time()
+        await db.commit()
 
-    # Trigger auto-improvement if quality is bad
+    # Reload row to get updated scores
+    from sqlalchemy import select as _select
+    _r = await db.execute(_select(Skill).where(Skill.skill_id == skill_id))
+    row = _r.scalar_one_or_none() or row
+
+    # Trigger auto-improvement if quality is still bad
     if row.quality_score < _QUALITY_IMPROVE_THRESHOLD and row.execution_count >= 3:
         asyncio.ensure_future(_auto_improve(db, row, error_msg))
 
@@ -154,6 +165,7 @@ async def execute(
         "error": error_msg or None,
         "elapsedMs": elapsed,
         "qualityScore": row.quality_score,
+        "trustScore": getattr(row, "trust_score", row.quality_score),
     }
 
 
@@ -564,6 +576,10 @@ def _to_dict(row: Skill) -> dict[str, Any]:
         dependencies = json.loads(row.dependencies_json or "[]")
     except Exception:
         dependencies = []
+    try:
+        tags = json.loads(row.tags_json or "[]")
+    except Exception:
+        tags = []
     return {
         "skillId": row.skill_id,
         "name": row.name,
@@ -575,9 +591,20 @@ def _to_dict(row: Skill) -> dict[str, Any]:
         "category": row.category,
         "origin": row.origin,
         "enabled": row.enabled,
+        "published": getattr(row, "published", False),
+        "publisher": getattr(row, "publisher", "system"),
+        "repoUrl": getattr(row, "repo_url", None),
+        "hashSha": getattr(row, "hash_sha", None),
         "qualityScore": row.quality_score,
+        "trustScore": getattr(row, "trust_score", row.quality_score),
         "executionCount": row.execution_count,
         "successCount": row.success_count,
+        "latencyMsAvg": round(getattr(row, "latency_ms_avg", 0.0), 1),
+        "userRating": round(getattr(row, "user_rating", 0.0), 2),
+        "ratingCount": getattr(row, "rating_count", 0),
+        "tags": tags,
+        "installedAt": getattr(row, "installed_at", None),
+        "previousVersionId": getattr(row, "previous_version_id", None),
         "createdAt": row.created_at,
         "updatedAt": row.updated_at,
     }

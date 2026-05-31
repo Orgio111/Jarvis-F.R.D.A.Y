@@ -395,3 +395,85 @@ Feedback / Quality loop (retry + crystallize)
 | Commit | What |
 |--------|------|
 | `round4-impl` | IntentRouter, structured output schemas, CancellationToken, PipelineState TypedDict, middle-out preview, Skill triggers+dependencies columns |
+
+---
+
+## Research Round 5 — Skill OS / Marketplace Architecture
+
+### Vision
+Jarvis = OS. Skills = apps. Marketplace = app store. Registry = package manager. GitHub importer = package installer.
+
+### Gap analysis vs current state
+| Feature | Current | Need |
+|---------|---------|------|
+| Skill CRUD | ✅ basic | ✅ |
+| Skill execution + sandbox | ✅ | ✅ |
+| Self-scoring (quality_score) | ✅ | ✅ |
+| GitHub importer | ❌ | Build |
+| Marketplace UI | ❌ | Build |
+| Skill registry metadata (repo_url, hash, trust_score, latency) | ❌ | Add to model |
+| Install/uninstall/rate/publish endpoints | ❌ | Build |
+| Skill search by tag/category | ❌ | Build |
+| Self-growing loop (detect missing → generate → validate → deploy) | ❌ partial | Wire fully |
+| Skill evolution loop (failure → patch → new version) | ❌ | Wire fully |
+| Score formula (success*0.5 + usage*0.2 + speed*0.2 + feedback*0.1) | partial | Wire |
+
+---
+
+## IMPLEMENTATION CHECKLIST — Round 5 (Skill OS)
+
+### BACKEND
+
+#### 1. Skill model extended fields
+- [ ] Add `repo_url`, `hash_sha`, `trust_score`, `latency_ms_avg`, `tags_json`, `installed_at`, `publisher` to Skill model
+
+#### 2. Skill Registry Service (`skill_registry.py`)
+- [ ] `compute_score(skill)` — weighted formula: success*0.5 + freq*0.2 + speed*0.2 + feedback*0.1
+- [ ] `update_registry_after_execution(skill_id, success, latency_ms)` — post-exec scoring
+- [ ] `rank_skills(category?)` — return ranked list
+- [ ] `auto_disable_bad_skills()` — disable skills with trust_score < 0.2 after 5+ runs
+- [ ] `detect_missing_capability(user_message)` — returns True if no skill matches + no LLM handled it
+
+#### 3. GitHub Importer (`github_importer.py`)
+- [ ] `import_from_github(url)` — clone → detect manifest → wrap → sandbox test → register
+- [ ] `detect_skill_manifest(repo_path)` — look for skill.json, tool.py, agent.yaml, plugin manifest
+- [ ] `llm_generate_manifest(repo_path)` — LLM scans repo → extracts callable + builds manifest
+- [ ] `wrap_to_jarvis_format(manifest, repo_path)` → generates `async def run(**kwargs)` wrapper
+- [ ] `validate_and_register(manifest, source_code)` — syntax check + dry-run + DB insert
+
+#### 4. Marketplace API endpoints (`routers/marketplace.py`)
+- [ ] `GET /marketplace/skills` — list with search/filter/sort
+- [ ] `GET /marketplace/skills/{id}` — detail + stats
+- [ ] `POST /marketplace/install` — install by skill_id or GitHub URL
+- [ ] `POST /marketplace/uninstall/{skill_id}` — soft disable + cleanup
+- [ ] `POST /marketplace/rate/{skill_id}` — user rating (1-5), updates trust_score
+- [ ] `POST /marketplace/publish` — publish a local skill to marketplace registry
+- [ ] `GET /marketplace/trending` — top by trust_score * usage_count
+- [ ] `GET /marketplace/search?q=&tags=&category=` — semantic + keyword search
+
+#### 5. Skill Evolution Loop (`skill_evolution.py`)
+- [ ] `run_evolution_cycle(db)` — scan all skills, find failures, trigger patch
+- [ ] `patch_skill(db, skill_id, error_context)` — LLM rewrites code, bumps version
+- [ ] `deprecate_old_version(db, skill_id)` — mark old as deprecated, activate new
+- [ ] Background task: scheduled every 10min via APScheduler
+
+#### 6. Self-Growing Capability Detection
+- [ ] Hook into chat.py: after IntentRouter miss + LLM response → check if LLM says "I can't do X"
+- [ ] If missing capability detected: auto-trigger `generate_and_store()` for that capability
+- [ ] Emit SSE event `skill_generated` with new skill metadata
+
+### FRONTEND
+
+#### 7. Skill Marketplace UI (`features/skillMarketplace/`)
+- [ ] `SkillMarketplacePage.tsx` — main page with search bar + tabs (All / Installed / Trending)
+- [ ] `SkillCard.tsx` — card: name, description, tags, trust_score stars, install button
+- [ ] `SkillDetailModal.tsx` — full detail: source code preview, stats, version history, rate
+- [ ] `GitHubImportModal.tsx` — URL input → import progress → result
+- [ ] `SkillRegistryStats.tsx` — dashboard widget: total skills, avg score, top categories
+- [ ] Add route `/skills` or tab in sidebar
+
+#### 8. Score formula wiring
+- [ ] Replace current naive `quality_score` update with full weighted formula
+- [ ] `latency_ms_avg` tracked per-execution (rolling avg)
+- [ ] `user_feedback` from marketplace rating endpoint feeds into score
+

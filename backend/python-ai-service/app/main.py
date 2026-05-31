@@ -196,6 +196,26 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("self_evolution_init_warning", error=str(exc))
 
+    # ── Skill Evolution background loop ────────────────────────────────────────
+    try:
+        import asyncio as _asyncio
+
+        async def _evolution_loop() -> None:
+            """Run skill evolution cycle every 10 minutes."""
+            from app.services.skill_evolution import run_evolution_cycle
+            while True:
+                await _asyncio.sleep(600)  # 10 min
+                try:
+                    async with _session_factory() as _ev_db:
+                        await run_evolution_cycle(_ev_db)
+                except Exception as _ev_exc:
+                    logger.warning("evolution_cycle_error", error=str(_ev_exc))
+
+        _asyncio.ensure_future(_evolution_loop())
+        logger.info("skill_evolution_loop_started", interval_seconds=600)
+    except Exception as exc:
+        logger.warning("skill_evolution_loop_warning", error=str(exc))
+
     logger.info("jarvis_ai_service_ready", host=settings.app_host, port=settings.app_port)
 
     yield
@@ -332,3 +352,7 @@ app.include_router(self_evolution_router.router)
 
 # Multi-Agent Orchestration (Phase 10 — free OpenRouter models)
 app.include_router(orchestrate_router)
+
+# ── Skill Marketplace (Skill OS) ──────────────────────────────────────────────
+from app.routers.marketplace import router as marketplace_router
+app.include_router(marketplace_router)
