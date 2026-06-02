@@ -16,8 +16,7 @@ from app.gpu.workload_router import WorkloadRouter
 from app.providers.router import ProviderRouter
 from app.routers import (
     health, bootstrap, gpu, system, providers, models, chat,
-    voice, memory, execution, tools, search, vision, self_improvement,
-    local_actions,
+    voice, memory, execution, tools, search, vision,
 )
 from app.routers import skills, profile, agent, scheduler as scheduler_router
 from app.routers.brain_router import router as brain_router
@@ -32,11 +31,10 @@ from app.image_generation.router import router as image_generation_router
 from app.prompt_mutation.router import router as prompt_mutation_router
 from app.routers.orchestrate import router as orchestrate_router
 
-# New system integrations
+# System integrations
 from app.routers import external_apis as external_apis_router
 from app.routers import workflows_engine as workflows_engine_router
 from app.routers import swarm_manager as swarm_manager_router
-from app.routers import memory_fabric as memory_fabric_router
 from app.routers import self_evolution as self_evolution_router
 from app.routers import stt as stt_router
 
@@ -123,9 +121,8 @@ async def lifespan(app: FastAPI):
     # ── Memory service warm-up (loads embedder + FAISS index) ─────────────────
     if settings.faiss_enabled:
         try:
-            from app.db.database import _session_factory as sf
             from app.services import memory_service
-            async with sf() as db:
+            async with _session_factory() as db:
                 await memory_service.boot(db, settings.embeddings_model)
             logger.info("memory_service_ready")
         except Exception as exc:
@@ -221,23 +218,30 @@ async def lifespan(app: FastAPI):
 
     # ── Skill Evolution background loop ────────────────────────────────────────
     try:
-        import asyncio as _asyncio
-
         async def _evolution_loop() -> None:
             """Run skill evolution cycle every 10 minutes."""
             from app.services.skill_evolution import run_evolution_cycle
             while True:
-                await _asyncio.sleep(600)  # 10 min
+                await asyncio.sleep(600)  # 10 min
                 try:
                     async with _session_factory() as _ev_db:
                         await run_evolution_cycle(_ev_db)
                 except Exception as _ev_exc:
                     logger.warning("evolution_cycle_error", error=str(_ev_exc))
 
-        _asyncio.ensure_future(_evolution_loop())
+        asyncio.ensure_future(_evolution_loop())
         logger.info("skill_evolution_loop_started", interval_seconds=600)
     except Exception as exc:
         logger.warning("skill_evolution_loop_warning", error=str(exc))
+
+    # ── Obsidian Vault Integration ─────────────────────────────────────────────
+    try:
+        from app.obsidian.sync import get_obsidian, register_hooks
+        get_obsidian()   # initialise singleton (reads OBSIDIAN_VAULT_PATH env)
+        register_hooks() # attach to orchestrator + self-improvement loop
+        logger.info("obsidian_initialized")
+    except Exception as exc:
+        logger.warning("obsidian_init_warning", error=str(exc))
 
     logger.info("jarvis_ai_service_ready", host=settings.app_host, port=settings.app_port)
 
@@ -322,10 +326,10 @@ app.include_router(execution.router)
 app.include_router(tools.router)
 app.include_router(search.router)
 app.include_router(vision.router)
-app.include_router(self_improvement.router)
-app.include_router(local_actions.router)
+app.include_router(self_evolution_router.self_improvement_router)
+# local_actions merged into tools.router above
 
-# New — persistent memory, skills, profile, agent loop, scheduler
+# Persistent services — memory, skills, profile, agent loop, scheduler
 app.include_router(skills.router)
 app.include_router(profile.router)
 app.include_router(agent.router)
@@ -358,22 +362,22 @@ app.include_router(image_generation_router)
 # Prompt Mutation Engine (Phase 7)
 app.include_router(prompt_mutation_router)
 
-# External API Registry (Phase 8)
+# External API Registry
 app.include_router(external_apis_router.router)
 
-# Workflow Engine (Ruflo) — new execution layer (Phase 8)
+# Workflow Engine (Ruflo) — new execution layer
 app.include_router(workflows_engine_router.router)
 
-# Swarm Manager (Phase 9 — v3 Distributed Autonomous Swarm Intelligence)
+# Swarm Manager (v3 Distributed Autonomous Swarm Intelligence)
 app.include_router(swarm_manager_router.router)
 
-# Memory Fabric (Phase 9 — v3 Multi-Layered Cognitive Memory)
-app.include_router(memory_fabric_router.router)
+# Memory Fabric (v3 Multi-Layered Cognitive Memory) — merged into memory.py
+app.include_router(memory.memory_fabric_router)
 
-# Self-Evolution Engine (Phase 9 — v3 Self-Improvement)
+# Self-Evolution Engine (v3 Self-Improvement)
 app.include_router(self_evolution_router.router)
 
-# Multi-Agent Orchestration (Phase 10 — free OpenRouter models)
+# Multi-Agent Orchestration
 app.include_router(orchestrate_router)
 
 # STT (faster-whisper GPU)
@@ -385,10 +389,6 @@ app.include_router(marketplace_router)
 
 from app.routers.multi_agent import router as multi_agent_router
 app.include_router(multi_agent_router)
-
-# ── Session Replay ────────────────────────────────────────────────────────────
-from app.routers.session_replay import router as session_replay_router
-app.include_router(session_replay_router)
 
 # ── Approval Gates ────────────────────────────────────────────────────────────
 from app.routers.approval import router as approval_router
@@ -405,10 +405,3 @@ app.include_router(wake_word_router.router)
 # ── Obsidian Vault Integration ────────────────────────────────────────────────
 from app.routers.obsidian import router as obsidian_router
 app.include_router(obsidian_router)
-
-# Init Obsidian singleton + register orchestrator hooks on startup
-@app.on_event("startup")
-async def _init_obsidian():
-    from app.obsidian.sync import get_obsidian, register_hooks
-    get_obsidian()   # initialise singleton (reads OBSIDIAN_VAULT_PATH env)
-    register_hooks() # attach to orchestrator + self-improvement loop

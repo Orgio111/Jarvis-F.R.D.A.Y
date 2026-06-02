@@ -10,6 +10,8 @@ import {
   FlaskConical,
   GitBranch,
   Store,
+  BookMarked,
+  BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useBootstrapStore } from '@/features/bootstrap/bootstrapStore';
@@ -41,12 +43,14 @@ const NAV_CATEGORIES: NavCategory[] = [
     label: 'Tools',
     items: [
       { path: '/tools',          label: 'Tools',         icon: Wrench, featureKey: 'tools' },
+      { path: '/prompt-library', label: 'Prompts',       icon: BookMarked },
     ],
   },
   {
     label: 'Intelligence',
     items: [
       { path: '/self-evolution',    label: 'Evolution',      icon: FlaskConical },
+      { path: '/obsidian',          label: 'Obsidian',       icon: BookOpen },
     ],
   },
   {

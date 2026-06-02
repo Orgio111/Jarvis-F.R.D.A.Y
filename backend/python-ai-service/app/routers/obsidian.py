@@ -34,6 +34,11 @@ def _obs():
     return get_obsidian()
 
 
+# ── Session Replay (nested under /obsidian/replay) ────────────────────────────
+from app.routers.session_replay import router as _replay_router
+router.include_router(_replay_router, prefix="")
+
+
 # ── GET /obsidian/status ──────────────────────────────────────────────────────
 
 @router.get("/status")

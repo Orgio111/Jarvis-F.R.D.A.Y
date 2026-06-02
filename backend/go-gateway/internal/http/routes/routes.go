@@ -146,7 +146,29 @@ func Build(cfg *config.Config, aiProxy *proxy.AIProxy, redis *redisclient.Client
 		r.Get("/api/local-actions/pending", localActH.ListPending)
 		r.Post("/api/local-actions/{actionId}/execute", localActH.Execute)
 		r.Post("/api/local-actions/approvals/{approvalId}/approve", localActH.Approve)
-		r.Post("/api/local-actions/approvals/{approvalId}/deny", localActH.Deny)		// Swarm Manager (v3 Distributed Autonomous Swarm Intelligence)
+		r.Post("/api/local-actions/approvals/{approvalId}/deny", localActH.Deny)
+
+		// Session Replay (proxied to Python /obsidian/replay/*)
+		r.Get("/api/session-replay/sessions", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/obsidian/replay/sessions")
+		})
+		r.Post("/api/session-replay/sessions", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyPost(aiProxy, w, r, "/obsidian/replay/sessions")
+		})
+		r.Get("/api/session-replay/sessions/{session_id}", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyGet(aiProxy, w, r, "/obsidian/replay/sessions/"+chi.URLParam(r, "session_id"))
+		})
+		r.Post("/api/session-replay/sessions/{session_id}/events", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyPost(aiProxy, w, r, "/obsidian/replay/sessions/"+chi.URLParam(r, "session_id")+"/events")
+		})
+		r.Post("/api/session-replay/sessions/{session_id}/close", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyPost(aiProxy, w, r, "/obsidian/replay/sessions/"+chi.URLParam(r, "session_id")+"/close")
+		})
+		r.Delete("/api/session-replay/sessions/{session_id}", func(w http.ResponseWriter, r *http.Request) {
+			handlers.ProxyDelete(aiProxy, w, r, "/obsidian/replay/sessions/"+chi.URLParam(r, "session_id"))
+		})
+
+		// Swarm Manager (v3 Distributed Autonomous Swarm Intelligence)
 		r.Get("/api/swarm/status", func(w http.ResponseWriter, r *http.Request) {
 			handlers.ProxyGet(aiProxy, w, r, "/swarm/status")
 		})

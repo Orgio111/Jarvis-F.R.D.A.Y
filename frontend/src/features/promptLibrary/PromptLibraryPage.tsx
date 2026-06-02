@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { usePromptLibrary } from './usePromptLibrary';
-import type { PromptTemplate } from './usePromptLibrary';
+import type { PromptTemplateView } from './usePromptLibrary';
 
 export const PromptLibraryPage: React.FC = () => {
   const {
@@ -16,7 +16,7 @@ export const PromptLibraryPage: React.FC = () => {
 
   const [search, setSearch] = useState('');
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Partial<PromptTemplate> | null>(null);
+  const [editing, setEditing] = useState<Partial<PromptTemplateView> | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [appliedText, setAppliedText] = useState<string | null>(null);
 
@@ -197,7 +197,7 @@ export const PromptLibraryPage: React.FC = () => {
 };
 
 interface TemplateCardProps {
-  template: PromptTemplate;
+  template: PromptTemplateView;
   onEdit: () => void;
   onDelete: () => void;
   onApply: () => void;

@@ -20,7 +20,7 @@ const MUTATION_TYPES = [
 ];
 
 export function SelfEvolutionPanel() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'trials' | 'mutate'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'suggestions' | 'trials' | 'mutate'>('dashboard');
   const [mutType, setMutType] = useState('prompt_strategy');
   const [mutTarget, setMutTarget] = useState('');
   const [mutCurrentValue, setMutCurrentValue] = useState('');

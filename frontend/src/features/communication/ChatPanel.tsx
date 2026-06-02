@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { m, AnimatePresence } from 'framer-motion';
-import { MessageSquare, Trash2, Search, Users, Database, RotateCcw, X } from 'lucide-react';
+import { MessageSquare, Trash2, Search, RotateCcw, X } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { useChatStore } from './chatStore';
 import { useChat } from './useChat';
@@ -44,10 +44,10 @@ export function ChatPanel() {
     gcTime: 5 * 60_000,
   });
 
-  // ── Session Replay (Merge: Session Replay → Chat) ──
-  const { data: recentSessions } = useQuery<{ sessions: Array<{ id: string; label: string; messageCount: number }> }>({
+  // ── Session Replay (via Obsidian /obsidian/replay/*) ──
+  const { data: recentSessions } = useQuery<{ sessions: Array<{ session_id: string; title: string; event_count: number; duration_s: number; started_at: number }> }>({
     queryKey: ['session-replay', 'recent'],
-    queryFn: () => apiClient.get('/session-replay/recent?limit=5'),
+    queryFn: () => apiClient.get('/session-replay/sessions?limit=5'),
     staleTime: 60_000,
     gcTime: 5 * 60_000,
   });

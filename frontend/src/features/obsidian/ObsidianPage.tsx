@@ -48,10 +48,10 @@ export const ObsidianPage: React.FC = () => {
     gcTime: 5 * 60_000,
   });
 
-  // ── Session Replays (Merge: Session Replay → Obsidian) ──
-  const { data: replayData } = useQuery<{ sessions: Array<{ id: string; label: string; messageCount: number; duration: string; timestamp: string }> }>({
+  // ── Session Replays (via Obsidian /obsidian/replay/*) ──
+  const { data: replayData } = useQuery<{ sessions: Array<{ session_id: string; title: string; event_count: number; duration_s: number; started_at: number; session_type: string }> }>({
     queryKey: ['session-replay', 'list'],
-    queryFn: () => apiClient.get('/session-replay/list?limit=20'),
+    queryFn: () => apiClient.get('/session-replay/sessions?limit=20'),
     enabled: tab === 'replays',
     staleTime: 30_000,
     gcTime: 5 * 60_000,
@@ -334,7 +334,7 @@ export const ObsidianPage: React.FC = () => {
             )}
             {replayData?.sessions?.map((session) => (
               <div
-                key={session.id}
+                key={session.session_id}
                 className="flex items-start gap-3 p-3 rounded-lg bg-gray-800/50 border border-gray-700/50 hover:border-purple-500/30 transition-colors cursor-pointer"
               >
                 <div className="w-7 h-7 rounded-lg bg-purple-500/10 border border-purple-500/30 flex items-center justify-center shrink-0">
@@ -342,16 +342,12 @@ export const ObsidianPage: React.FC = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-white text-xs font-medium truncate">{session.label || 'Unnamed Session'}</span>
-                    <span className="text-gray-500 text-[10px] font-mono">{session.messageCount} messages</span>
+                    <span className="text-white text-xs font-medium truncate">{session.title || 'Unnamed Session'}</span>
+                    <span className="text-gray-500 text-[10px] font-mono">{session.event_count} events</span>
                   </div>
                   <div className="flex items-center gap-3 mt-1">
-                    {session.duration && (
-                      <span className="text-gray-500 text-[10px] font-mono">{session.duration}</span>
-                    )}
-                    {session.timestamp && (
-                      <span className="text-gray-600 text-[10px] font-mono">{session.timestamp}</span>
-                    )}
+                    <span className="text-gray-500 text-[10px] font-mono">{session.duration_s.toFixed(1)}s</span>
+                    <span className="text-gray-600 text-[10px] font-mono">{new Date(session.started_at * 1000).toLocaleString()}</span>
                   </div>
                 </div>
               </div>

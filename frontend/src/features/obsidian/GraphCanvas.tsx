@@ -48,17 +48,6 @@ export const GraphCanvas: React.FC<Props> = ({ nodes, edges, onNodeClick }) => {
   const dragging   = useRef<{ node: GraphNode; ox: number; oy: number } | null>(null);
   const hoveredId  = useRef<string | null>(null);
 
-  const buildEdgeMap = useCallback(() => {
-    const map = new Map<string, string[]>();
-    for (const e of edges) {
-      if (!map.has(e.source)) map.set(e.source, []);
-      if (!map.has(e.target)) map.set(e.target, []);
-      map.get(e.source)!.push(e.target);
-      map.get(e.target)!.push(e.source);
-    }
-    return map;
-  }, [edges]);
-
   const tick = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;

@@ -132,12 +132,19 @@ const FEATURE_LABELS: Record<keyof FeatureFlags, string> = {
   tools: 'Tools',
   execution: 'Execution',
   search: 'Search',
-  terminal: 'Terminal',
-  localControl: 'Local Actions',
-  selfImprovement: 'Self-Improve',
+  terminal: 'Terminal',  localControl: 'Local Actions',
+  selfImprovement: 'Self-Evolution',
   localLlm: 'Local LLM',
   gpuMonitor: 'GPU Monitor',
 };
+
+// Legacy flags merged into other features — excluded from the pill grid
+// but kept in FEATURE_LABELS/FEATURE_ICONS to satisfy the Record type.
+const LEGACY_FEATURE_KEYS = new Set<keyof FeatureFlags>([
+  'selfImprovement',
+  'gpuMonitor',
+  'localControl',
+]);
 
 const FEATURE_ROUTES: Partial<Record<keyof FeatureFlags, string>> = {
   chat: '/chat',
@@ -482,11 +489,12 @@ export function DashboardPage() {
                 <span className="jarvis-panel-title">
                   <Boxes size={14} />
                   FEATURES
-                </span>
-                <span className="text-jarvis-text-dim/40 text-[10px] font-mono">{Object.values(features).filter(Boolean).length} enabled</span>
+                </span>                <span className="text-jarvis-text-dim/40 text-[10px] font-mono">{(Object.entries(features) as [keyof FeatureFlags, boolean][]).filter(([k]) => !LEGACY_FEATURE_KEYS.has(k)).filter(([, v]) => v).length} enabled</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                {(Object.entries(features) as [keyof FeatureFlags, boolean][]).map(([key, enabled]) => (
+                {(Object.entries(features) as [keyof FeatureFlags, boolean][])
+                  .filter(([key]) => !LEGACY_FEATURE_KEYS.has(key))
+                  .map(([key, enabled]) => (
                   <FeaturePill
                     key={key}
                     name={FEATURE_LABELS[key]}

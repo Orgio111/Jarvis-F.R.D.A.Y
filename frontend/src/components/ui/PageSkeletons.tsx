@@ -100,8 +100,7 @@ export type SkeletonKey =
   | 'models'
   | 'monitoring'
   | 'settings'
-  | 'selfImprovement'
-  | 'localActions';
+  | 'settings';
 
 const SKELETON_MAP: Record<SkeletonKey, () => JSX.Element> = {
   dashboard: DashboardSkeleton,
@@ -117,8 +116,6 @@ const SKELETON_MAP: Record<SkeletonKey, () => JSX.Element> = {
   models: ModelsSkeleton,
   monitoring: MonitoringSkeleton,
   settings: SettingsSkeleton,
-  selfImprovement: SelfImprovementSkeleton,
-  localActions: LocalActionsSkeleton,
 };
 
 export function PageSkeleton({ page }: { page: SkeletonKey }) {
@@ -451,47 +448,4 @@ function SettingsSkeleton() {
   );
 }
 
-// ─── Self-Improvement ─────────────────────────────────────────────────────────
 
-function SelfImprovementSkeleton() {
-  return (
-    <div className="p-6 space-y-6 h-full overflow-auto">
-      <SkeletonHeading />
-      {/* Status bar */}
-      <SkeletonBlock className="p-4 h-12" />
-      {/* Textarea */}
-      <SkeletonBlock className="p-5 space-y-3">
-        <SkeletonBar className="h-4 w-32" />
-        <SkeletonBlock className="h-24 w-full" />
-        <SkeletonBar className="h-9 w-40 rounded-lg" />
-      </SkeletonBlock>
-      {/* Suggestions list */}
-      <div className="space-y-3">
-        {[0, 1].map((i) => <SkeletonPanel key={i} className="h-24" />)}
-      </div>
-    </div>
-  );
-}
-
-// ─── Local Actions ────────────────────────────────────────────────────────────
-
-function LocalActionsSkeleton() {
-  return (
-    <div className="p-6 space-y-6 h-full overflow-auto">
-      <SkeletonHeading />
-      <SkeletonBlock className="p-4 h-12" />
-      <div className="flex gap-4">
-        {/* Sidebar */}
-        <div className="w-56 shrink-0 space-y-2">
-          {[0, 1, 2, 3].map((i) => (
-            <SkeletonBlock key={i} className="p-3 space-y-2 h-20" />
-          ))}
-        </div>
-        {/* Main panel */}
-        <div className="flex-1">
-          <SkeletonPanel className="h-48" />
-        </div>
-      </div>
-    </div>
-  );
-}
